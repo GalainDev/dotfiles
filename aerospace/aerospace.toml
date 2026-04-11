@@ -1,0 +1,83 @@
+# AeroSpace config
+# Modifier key: Alt (Option)
+
+start-at-login = true
+
+[gaps]
+inner.horizontal = 8
+inner.vertical   = 8
+outer.left       = 8
+outer.right      = 8
+outer.top        = 8
+outer.bottom     = 8
+
+[mode.main.binding]
+
+# Focus window (jkl; or arrow keys)
+alt-j = 'focus left'
+alt-k = 'focus down'
+alt-l = 'focus up'
+alt-semicolon = 'focus right'
+
+alt-left  = 'focus left'
+alt-down  = 'focus down'
+alt-up    = 'focus up'
+alt-right = 'focus right'
+
+# Move window
+alt-shift-j = 'move left'
+alt-shift-k = 'move down'
+alt-shift-l = 'move up'
+alt-shift-semicolon = 'move right'
+
+alt-shift-left  = 'move left'
+alt-shift-down  = 'move down'
+alt-shift-up    = 'move up'
+alt-shift-right = 'move right'
+
+# Resize
+alt-ctrl-j = 'resize width -50'
+alt-ctrl-semicolon = 'resize width +50'
+alt-ctrl-k = 'resize height +50'
+alt-ctrl-l = 'resize height -50'
+
+# Layout toggles
+alt-slash     = 'layout tiles horizontal vertical'
+alt-backslash = 'layout accordion horizontal vertical'
+
+# Fullscreen (AeroSpace-managed, not macOS native)
+alt-f = 'fullscreen'
+
+# Float / unfloat
+alt-shift-f = 'layout floating tiling'
+
+# Balance all window sizes equally
+alt-shift-b = 'balance-sizes'
+
+# Switch workspaces
+alt-1 = 'workspace 1'
+alt-2 = 'workspace 2'
+alt-3 = 'workspace 3'
+alt-4 = 'workspace 4'
+alt-5 = 'workspace 5'
+alt-6 = 'workspace 6'
+alt-7 = 'workspace 7'
+alt-8 = 'workspace 8'
+alt-9 = 'workspace 9'
+
+# Move window to workspace
+alt-shift-1 = ['move-node-to-workspace 1', 'workspace 1']
+alt-shift-2 = ['move-node-to-workspace 2', 'workspace 2']
+alt-shift-3 = ['move-node-to-workspace 3', 'workspace 3']
+alt-shift-4 = ['move-node-to-workspace 4', 'workspace 4']
+alt-shift-5 = ['move-node-to-workspace 5', 'workspace 5']
+alt-shift-6 = ['move-node-to-workspace 6', 'workspace 6']
+alt-shift-7 = ['move-node-to-workspace 7', 'workspace 7']
+alt-shift-8 = ['move-node-to-workspace 8', 'workspace 8']
+alt-shift-9 = ['move-node-to-workspace 9', 'workspace 9']
+
+# Jump back to previous workspace
+alt-tab = 'workspace-back-and-forth'
+
+# Reload config
+alt-shift-r = 'reload-config'
