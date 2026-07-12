@@ -7,7 +7,7 @@ machine converges to this exact setup. Structure borrowed from
 ## Quick start (fresh machine)
 
 ```sh
-git clone git@github.com:NamehYenad1/dotfiles.git
+git clone git@github.com:GalainDev/dotfiles.git
 cd dotfiles
 ./bootstrap.sh   # installs Determinate Nix, symlinks ~/.dotfiles, first switch
 ```
