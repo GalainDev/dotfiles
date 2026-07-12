@@ -1,4 +1,4 @@
-{ user, ... }:
+{ pkgs, user, ... }:
 
 {
   # Determinate Nix manages the nix daemon itself; nix-darwin must not.
@@ -12,6 +12,10 @@
     home = "/Users/${user}";
   };
   system.stateVersion = 6;
+
+  # System-level fonts land in "/Library/Fonts/Nix Fonts" — the mechanism macOS
+  # actually sees. (home.packages fonts don't reach macOS font discovery.)
+  fonts.packages = with pkgs; [ nerd-fonts.hack ];
 
   # macOS settings, declaratively. `defaults write` without the drift.
   system.defaults = {
