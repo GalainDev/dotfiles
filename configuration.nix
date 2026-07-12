@@ -37,8 +37,15 @@
     inherit user;
   };
 
+  # Homebrew's repo is nix-managed (immutable), so `brew analytics off` can't
+  # persist — disable analytics via the environment instead.
+  environment.variables.HOMEBREW_NO_ANALYTICS = "1";
+
   homebrew = {
     enable = true;
+    # AeroSpace ships from its developer's tap. Fresh machines must also run
+    # `brew trust nikitabobko/tap` once (trust is machine-local, not declarable).
+    taps = [ "nikitabobko/tap" ];
     # IMPORTANT: Kun uses cleanup = "zap", which UNINSTALLS anything not in
     # these lists on every switch. We start with "none" (never remove).
     # Once you trust the lists below are complete, flip to "uninstall" to get
