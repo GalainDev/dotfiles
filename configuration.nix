@@ -74,7 +74,8 @@
       "aerospace"
       "android-platform-tools"
       "dbeaver-community"
-      "font-hack-nerd-font"
+      # font-hack-nerd-font moved to nix (home.packages nerd-fonts.hack);
+      # brew copy can be removed with: brew uninstall --cask font-hack-nerd-font
       "keepassxc"
       "nordvpn"
       "pgadmin4"

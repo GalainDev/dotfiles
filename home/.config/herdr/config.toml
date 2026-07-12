@@ -24,6 +24,7 @@ reload_config = "prefix+r"
 # herdr-native goodies (Kun's picks, worth keeping)
 workspace_picker = "prefix+w"
 goto             = "prefix+g"
+copy_mode        = "prefix+y"  # inside copy mode: v/space select, y/Enter copy, q/Esc cancel
 
 [ui]
 # Agents panel grouped by workspace rather than priority

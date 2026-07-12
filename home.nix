@@ -14,7 +14,10 @@ in
 
   # Nix-managed user packages go here (Homebrew handles the rest for now).
   # Try it: add `pkgs.ripgrep` and run ./rebuild.sh — that's the whole loop.
-  home.packages = with pkgs; [ ];
+  home.packages = with pkgs; [
+    nerd-fonts.hack   # the font everything renders in (was a brew cask)
+  ];
+  fonts.fontconfig.enable = true;
 
   home.sessionVariables.EDITOR = "nvim";
 
