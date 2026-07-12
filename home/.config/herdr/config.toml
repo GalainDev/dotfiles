@@ -1,0 +1,30 @@
+# herdr config — my tmux keybindings, ported.
+# Key names and action list verified against herdr src/config/keybinds.rs (v0.7.3).
+
+[keys]
+prefix = "ctrl+b"
+
+# Pane focus — AeroSpace-style home row, same as my tmux: j/k/l/; = left/down/up/right
+focus_pane_left  = "prefix+j"
+focus_pane_down  = "prefix+k"
+focus_pane_up    = "prefix+l"
+focus_pane_right = "prefix+semicolon"
+
+# Splits — same letters as my tmux: h = side-by-side, n = top/bottom
+# (herdr's "vertical" = vertical divider = side-by-side, like tmux's %)
+split_vertical   = "prefix+h"
+split_horizontal = "prefix+n"
+
+# tmux muscle memory
+new_tab       = "prefix+c"
+close_tab     = "prefix+ampersand"
+detach        = "prefix+d"
+reload_config = "prefix+r"
+
+# herdr-native goodies (Kun's picks, worth keeping)
+workspace_picker = "prefix+w"
+goto             = "prefix+g"
+
+[ui]
+# Agents panel grouped by workspace rather than priority
+agent_panel_sort = "spaces"
