@@ -14,7 +14,7 @@ Copy the config:
 ```bash
 mkdir -p ~/.config/aerospace
 curl -o ~/.config/aerospace/aerospace.toml \
-  https://raw.githubusercontent.com/NamehYenad1/aerospace-config/main/aerospace.toml
+  https://raw.githubusercontent.com/GalainDev/dotfiles/main/home/.config/aerospace/aerospace.toml
 ```
 
 Then launch AeroSpace from `/Applications/AeroSpace.app` and grant it Accessibility permission in **System Settings → Privacy & Security → Accessibility**.
