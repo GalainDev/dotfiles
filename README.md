@@ -48,6 +48,8 @@ cd dotfiles
 - **`.config/wezterm/wezterm.lua`** — rose-pine-moon, Hack Nerd Font 15pt, blur.
 - **`.config/herdr/config.toml`** — herdr (primary multiplexer, agent-aware) with
   my tmux keybindings ported.
+- **`.config/aerospace/`** — AeroSpace tiling WM config (alt-based, jkl; navigation —
+  the same home-row scheme the herdr/tmux bindings mirror).
 - **`.tmux.conf`** — kept as fallback during the herdr transition.
 
 ## Keybindings (herdr — same muscle memory as my tmux)
