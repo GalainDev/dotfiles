@@ -30,6 +30,10 @@
 
   nix-homebrew = {
     enable = true;
+    # Machine had Homebrew before nix: adopt the existing /opt/homebrew install.
+    # Migration replaces the brew program itself but keeps every installed
+    # package (Cellar/Caskroom untouched).
+    autoMigrate = true;
     inherit user;
   };
 
