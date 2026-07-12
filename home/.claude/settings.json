@@ -4,7 +4,6 @@
     "pr": ""
   },
   "permissions": {
-    "defaultMode": "auto",
     "deny": [
       "Read(**/.env)",
       "Read(**/.env.local)",
@@ -21,15 +20,16 @@
       "Read(**/id_ed25519)",
       "Read(**/*credentials.json)",
       "Read(**/serviceAccountKey*.json)"
-    ]
+    ],
+    "defaultMode": "auto"
   },
+  "model": "sonnet",
   "enabledPlugins": {
     "rust-analyzer-lsp@claude-plugins-official": true
   },
-  "effortLevel": "xhigh",
+  "effortLevel": "medium",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "editorMode": "vim",
-  "agentPushNotifEnabled": true,
-  "model": "claude-fable-5[1m]"
+  "agentPushNotifEnabled": true
 }
