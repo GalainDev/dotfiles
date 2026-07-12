@@ -87,6 +87,6 @@ his README warning.)
 
 1. Add `_HIHideMenuBar = true;` to `configuration.nix` → `./rebuild.sh` → menu bar hides.
 2. Add `pkgs.ripgrep` to `home.packages` in `home.nix` → rebuild → `which rg` shows a /nix path.
-3. Adopt `programs.zsh` + starship prompt (careful: back up `~/.zshrc` first — home-manager
-   will want to own it).
+3. Customize the starship prompt format in `home.nix` (shell layer is already managed:
+   autosuggestions, syntax highlighting, fzf, zoxide, starship).
 4. Flip Homebrew cleanup to `"uninstall"` and remove something from the list.

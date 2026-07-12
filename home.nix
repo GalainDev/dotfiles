@@ -18,9 +18,46 @@ in
 
   home.sessionVariables.EDITOR = "nvim";
 
-  # NOTE: deliberately NOT managing zsh/shell yet — your existing ~/.zshrc
-  # (nvm etc.) stays untouched. Adopting programs.zsh + starship is a good
-  # later exercise once you're comfortable with the rebuild loop.
+  # ── Shell (home-manager owns ~/.zshrc now; the old one is backed up as
+  #    ~/.zshrc.before-nix on first switch) ────────────────────────────────
+  programs.zsh = {
+    enable = true;
+    autosuggestion.enable = true;      # ghost-text suggestions from history
+    syntaxHighlighting.enable = true;  # valid commands turn green as you type
+    initContent = ''
+      bindkey '^f' autosuggest-accept  # Ctrl+F accepts the ghost suggestion
+
+      # ── ported verbatim from my pre-nix ~/.zshrc ──
+      export PATH="$HOME/.local/bin:$PATH"   # native claude takes priority
+      alias claude-a='claude --permission-mode auto'
+      alias claude-dsp='claude --dangerously-skip-permissions'
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    '';
+  };
+
+  programs.zoxide = {
+    enable = true;                # smart cd — was a manual eval in old zshrc
+    enableZshIntegration = true;
+  };
+
+  programs.fzf = {
+    enable = true;                # Ctrl+R fuzzy history, Ctrl+T fuzzy files
+    enableZshIntegration = true;
+  };
+
+  programs.starship = {
+    enable = true;                # Kun's minimal prompt
+    settings = {
+      add_newline = false;
+      format = "$directory$git_branch$git_status$cmd_duration$line_break$character";
+      character = {
+        success_symbol = "[❯](purple)";
+        error_symbol = "[❯](red)";
+      };
+      cmd_duration.format = "[$duration]($style) ";
+    };
+  };
 
   # ── Config symlinks (edit-in-place; the repo is the source of truth) ──────
   home.file.".config/wezterm".source =
