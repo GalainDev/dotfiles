@@ -45,35 +45,78 @@ cd dotfiles
     *code* lives in `~/.local/share/nvim/lazy/`, outside the repo, regenerated anywhere)
   - `lua/vim_config.lua` — options (space leader, relative numbers, no mouse)
   - `lua/keys.lua` — custom maps (Esc = save, Ctrl+A = select all)
-- **`.config/wezterm/wezterm.lua`** — rose-pine-moon, Hack Nerd Font 15pt, blur.
+- **`.config/wezterm/wezterm.lua`** — Tokyo Night, Hack Nerd Font 15pt, blur, native
+  Cmd-based splits independent of herdr/tmux.
 - **`.config/herdr/config.toml`** — herdr (primary multiplexer, agent-aware) with
   my tmux keybindings ported.
 - **`.config/aerospace/`** — AeroSpace tiling WM config (alt-based, jkl; navigation —
   the same home-row scheme the herdr/tmux bindings mirror).
 - **`.tmux.conf`** — kept as fallback during the herdr transition.
 
-## Keybindings (herdr — same muscle memory as my tmux)
+## Keybindings
+
+Five layers, outside-in. `j`/`k`/`l`/`;` = left/down/up/right is the consistent home
+row across AeroSpace, WezTerm, herdr, and tmux — deliberate, so the muscle memory
+transfers between layers.
+
+### AeroSpace (window manager — `Alt`, system-wide)
 
 | Keys | Action |
 |---|---|
-| `C-b h` / `C-b n` | split side-by-side / top-bottom |
-| `C-b j` `k` `l` `;` | focus pane left / down / up / right |
-| `C-b c` / `C-b &` | new / close tab |
-| `C-b w` / `C-b g` | workspace picker / goto |
-| `C-b d` / `C-b r` | detach / reload config |
-| `C-b [` | copy mode (vim keys inside) |
+| `Alt+j/k/l/;` or arrows | Focus window left/down/up/right |
+| `Alt+Shift+j/k/l/;` or arrows | Move window left/down/up/right |
+| `Alt+,` / `Alt+.` | Focus previous/next monitor |
+| `Alt+Shift+,` / `Alt+Shift+.` | Move window to that monitor and follow |
+| `Alt+Ctrl+,` / `Alt+Ctrl+.` | Move whole workspace to that monitor |
+| `Alt+O` / `Alt+P` | Resize smaller / larger |
+| `Alt+/` | Toggle tiles layout (horizontal↔vertical) |
+| `Alt+\` | Toggle accordion layout |
+| `Alt+F` | Fullscreen (AeroSpace-managed) |
+| `Alt+Shift+F` | Float ↔ tile toggle |
+| `Alt+Shift+B` | Balance window sizes |
+| `Alt+1`–`9` | Switch to workspace 1–9 |
+| `Alt+Shift+1`–`9` | Move window to workspace N and follow |
+| `Alt+Tab` | Jump to previous workspace |
+| `Alt+Shift+R` | Reload AeroSpace config |
 
-## Neovim survival card (learning)
+### WezTerm (terminal — `Cmd`; works even with no multiplexer running)
 
 | Keys | Action |
 |---|---|
-| `<space>f` / `<space>s` | find files / grep text |
-| `<space>b` / `<space>e` | buffers / file browser (oil) |
-| `<space>g` | neogit |
-| `gd` | goto definition |
-| `Esc` | **saves the file** (his quirk, kept) |
-| `11k` / `11j` | jump 11 lines up/down (relative numbers) |
-| `:q` | exit (you're welcome) |
+| `Cmd+H` | Split side-by-side |
+| `Cmd+N` | Split top/bottom |
+| `Cmd+J/K/L/;` | Focus pane left/down/up/right |
+| `Cmd+W` | Close current pane |
+
+### herdr (primary multiplexer — prefix `Ctrl+B`; run `herdr` to start)
+
+| Keys | Action |
+|---|---|
+| `C-b h` / `C-b n` | Split side-by-side / top-bottom |
+| `C-b j` `k` `l` `;` | Focus pane left / down / up / right |
+| `C-b c` / `C-b &` | New tab / close tab |
+| `C-b w` / `C-b g` | Workspace picker / goto |
+| `C-b d` / `C-b r` | Detach / reload config |
+| `C-b y` | Copy mode (then `v`/space select, `y`/Enter copy, `q`/Esc cancel) |
+
+### tmux (fallback — same prefix `Ctrl+B`, only if launched directly instead of herdr)
+
+Same `h`/`n` splits and `j/k/l/;` focus as herdr, plus `C-b r` reloads. Mouse
+drag-to-copy also works. Resurrect/continuum auto-save the session every 15 min.
+
+### Neovim (leader = `Space`, mouse disabled on purpose)
+
+| Keys | Action |
+|---|---|
+| `Esc` | **Saves the file** (not just exits insert mode — his quirk, kept) |
+| `Ctrl+A` | Select all |
+| `<space>f` / `<space>s` | Find files / grep text |
+| `<space>b` / `<space>e` | Buffers / file browser (oil) |
+| `<space>g` | Git (neogit) |
+| `gd` | Goto definition |
+| `<space>` (then wait) | which-key popup — shows every live binding |
+| `11k` / `11j` | Jump 11 lines up/down (relative numbers) |
+| `:q` | Exit (you're welcome) |
 
 ## Homebrew policy
 
