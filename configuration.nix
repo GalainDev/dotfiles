@@ -61,13 +61,17 @@
     # below). cleanup stays "none", so nothing already installed is removed —
     # this only affects what a NEW machine gets automatically.
     brews = [
+      "bat"            # nicer `cat` — syntax highlighting, git-diff gutter
+      "fd"             # faster `find`, gitignore-aware
       "fzf"            # wired into home.nix shell config (Ctrl+R/Ctrl+T)
       "gh"             # used throughout to create/manage this whole repo suite
       "go"             # needed to build Pebbles v2
       "herdr"          # primary multiplexer (agent-aware); tmux kept as fallback
       "jq"             # used constantly by our own tooling
+      "lazygit"        # git TUI outside nvim (complements neogit, <leader>g)
       "neovim"
       "tmux"
+      "yazi"           # terminal file manager w/ previews (complements oil.nvim, <leader>e)
       "zoxide"         # wired into home.nix shell config
     ];
     # Trimmed to just what this build actually needs. cleanup stays "none"
