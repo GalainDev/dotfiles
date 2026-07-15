@@ -85,18 +85,13 @@
       "yazi"
       "zoxide"
     ];
+    # Trimmed to just what this build actually needs. cleanup stays "none"
+    # (see above), so dropping a cask here never removes it from a machine
+    # that already has it — it just stops being auto-installed on new ones.
     casks = [
       "aerospace"
-      "android-platform-tools"
-      "dbeaver-community"
       # font-hack-nerd-font moved to nix (home.packages nerd-fonts.hack);
       # brew copy can be removed with: brew uninstall --cask font-hack-nerd-font
-      "keepassxc"
-      "nordvpn"
-      "pgadmin4"
-      "polypane"
-      "postman"
-      "spotify"
       "wezterm"
     ];
   };
