@@ -4,6 +4,11 @@ My Mac, declared. nix-darwin + home-manager: one repo, one command, and a fresh
 machine converges to this exact setup. Structure borrowed from
 [kunchenguid/dotfiles](https://github.com/kunchenguid/dotfiles) (MIT-0), contents mine.
 
+Hardware side of the setup lives in a separate repo:
+[typeractive-corne](https://github.com/GalainDev/typeractive-corne) — ZMK firmware
+config for a wireless split Corne (nice!nano v2, nice!view displays, 5-layer keymap
+with home-row mods).
+
 ## Quick start (fresh machine)
 
 ```sh
