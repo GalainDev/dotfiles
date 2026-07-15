@@ -57,33 +57,18 @@
     onActivation.cleanup = "none";
     onActivation.autoUpdate = true;
 
-    # Everything already on this machine, now declared. A fresh Mac running
-    # bootstrap.sh reproduces the full set.
+    # Trimmed to only what this build actually uses (same rationale as casks
+    # below). cleanup stays "none", so nothing already installed is removed —
+    # this only affects what a NEW machine gets automatically.
     brews = [
-      "bat"
-      "btop"
-      "codanna"
-      "docker"
-      "dolt"
-      "fastfetch"
-      "fd"
-      "fzf"
-      "gh"
-      "gnupg"
-      "go"
+      "fzf"            # wired into home.nix shell config (Ctrl+R/Ctrl+T)
+      "gh"             # used throughout to create/manage this whole repo suite
+      "go"             # needed to build Pebbles v2
       "herdr"          # primary multiplexer (agent-aware); tmux kept as fallback
-      "jq"
-      "lazygit"
-      "llama.cpp"
-      "mysql"
+      "jq"             # used constantly by our own tooling
       "neovim"
-      "nvm"
-      "p7zip"
-      "postgresql@17"
-      "resvg"
       "tmux"
-      "yazi"
-      "zoxide"
+      "zoxide"         # wired into home.nix shell config
     ];
     # Trimmed to just what this build actually needs. cleanup stays "none"
     # (see above), so dropping a cask here never removes it from a machine
