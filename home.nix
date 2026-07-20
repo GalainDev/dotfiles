@@ -34,6 +34,7 @@ in
       export PATH="$HOME/.local/bin:$PATH"   # native claude takes priority
       alias claude-a='claude --permission-mode auto'
       alias claude-dsp='claude --dangerously-skip-permissions'
+      alias codex-dsp='codex --dangerously-bypass-approvals-and-sandbox'
       export NVM_DIR="$HOME/.nvm"
       [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
     '';
