@@ -16,6 +16,7 @@ in
   # Try it: add `pkgs.ripgrep` and run ./rebuild.sh — that's the whole loop.
   home.packages = with pkgs; [
     nerd-fonts.hack   # the font everything renders in (was a brew cask)
+    glow              # render markdown in the terminal (styled, not raw text)
   ];
   fonts.fontconfig.enable = true;
 

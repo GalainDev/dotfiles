@@ -19,13 +19,26 @@ split_horizontal = "prefix+n"
 new_tab       = "prefix+c"
 close_tab     = "prefix+ampersand"
 detach        = "prefix+d"
-reload_config = "prefix+r"
+# Actual herdr default for reload is prefix+shift+r, not prefix+r — prefix+r
+# is resize_mode (h/l = width, j/k = height, esc to exit). Keeping reload here
+# instead of stealing prefix+r, which had accidentally shadowed resize_mode.
+reload_config = "prefix+shift+r"
 
 # herdr-native goodies (Kun's picks, worth keeping)
 workspace_picker = "prefix+w"
 goto             = "prefix+g"
 copy_mode        = "prefix+y"  # inside copy mode: v/space select, y/Enter copy, q/Esc cancel
 
+# Agent cycling — plain-letter, no Alt/Option (Option+digit chords have
+# both a composed-character issue and an ESC-timing race over plain PTY).
+next_agent     = "prefix+a"
+previous_agent = "prefix+shift+a"
+
+# Space jump uses the existing workspace_picker (prefix+w) instead of a
+# shift+number chord — shift+1 sends "!" on this terminal, not a reportable
+# shift modifier, so switch_workspace can't reliably distinguish it.
+
 [ui]
 # Agents panel grouped by workspace rather than priority
 agent_panel_sort = "spaces"
+show_agent_labels_on_pane_borders = true

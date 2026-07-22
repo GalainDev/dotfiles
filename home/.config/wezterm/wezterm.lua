@@ -26,6 +26,18 @@ config.keys = {
 	{ key = "l", mods = "CMD", action = act.ActivatePaneDirection("Up") },
 	{ key = ";", mods = "CMD", action = act.ActivatePaneDirection("Right") },
 	{ key = "w", mods = "CMD", action = act.CloseCurrentPane({ confirm = false }) },
+	-- Cmd+W above shadows WezTerm's default tab-close binding, so restore it explicitly.
+	{ key = "w", mods = "CMD|SHIFT", action = act.CloseCurrentTab({ confirm = false }) },
+
+	-- Resize the active pane, same j/k/l/; directions as everything else.
+	-- CMD+ALT so it doesn't collide with the plain CMD bindings above.
+	{ key = "j", mods = "CMD|ALT", action = act.AdjustPaneSize({ "Left", 3 }) },
+	{ key = "k", mods = "CMD|ALT", action = act.AdjustPaneSize({ "Down", 3 }) },
+	{ key = "l", mods = "CMD|ALT", action = act.AdjustPaneSize({ "Up", 3 }) },
+	{ key = ";", mods = "CMD|ALT", action = act.AdjustPaneSize({ "Right", 3 }) },
+
+	-- Swap the active pane with its neighbor by rotating pane order.
+	{ key = "r", mods = "CMD|ALT", action = act.RotatePanes("Clockwise") },
 }
 
 return config
