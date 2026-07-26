@@ -23,9 +23,10 @@
     ],
     "defaultMode": "auto"
   },
+  "model": "sonnet",
+  "enabledPlugins": {},
   "sandbox": {
     "enabled": true,
-    "excludedCommands": ["gh", "gcloud", "docker"],
     "network": {
       "allowedDomains": [
         "github.com",
@@ -39,15 +40,30 @@
     },
     "credentials": {
       "files": [
-        { "path": "~/.ssh", "mode": "deny" },
-        { "path": "~/.aws", "mode": "deny" },
-        { "path": "~/.gnupg", "mode": "deny" },
-        { "path": "~/.kube", "mode": "deny" }
+        {
+          "path": "~/.ssh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.aws",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.gnupg",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.kube",
+          "mode": "deny"
+        }
       ]
-    }
+    },
+    "excludedCommands": [
+      "gh",
+      "gcloud",
+      "docker"
+    ]
   },
-  "model": "sonnet",
-  "enabledPlugins": {},
   "effortLevel": "medium",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,

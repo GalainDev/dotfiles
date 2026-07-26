@@ -1,3 +1,4 @@
+onboarding = false
 # herdr config — my tmux keybindings, ported.
 # Key names and action list verified against herdr src/config/keybinds.rs (v0.7.3).
 
