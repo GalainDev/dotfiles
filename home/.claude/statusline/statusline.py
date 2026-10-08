@@ -1,0 +1,535 @@
+#!/usr/bin/env python3
+"""Claude Code status line: three colour-coded rows (where, limits, session).
+
+Claude Code runs this with the session JSON on stdin (settings.json
+`statusLine`). Run it from a terminal to change preferences:
+
+  statusline                    show preferences and a preview
+  statusline emoji [on|off]     emoji labels (toggles without an argument)
+  statusline compact [on|off]   one row instead of three
+  statusline hide|show <seg>    hide or show a segment
+  statusline preview            render the last real input in every style
+
+Preferences live in $XDG_CONFIG_HOME/claude-statusline/prefs.json and apply on
+the next refresh. Env overrides: STATUSLINE_EMOJI=0|1, STATUSLINE_COMPACT=0|1,
+NO_COLOR. Stdlib only (Python 3.9); render mode never exits non-zero.
+"""
+
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import unicodedata
+
+SEGMENTS = (
+    "dir", "branch", "worktree", "pr", "model", "tier", "effort", "thinking",
+    "fast", "ctx", "5h", "7d", "sid", "name", "duration", "lines", "cost",
+    "style", "agent",
+)
+DEFAULT_PREFS = {"emoji": False, "compact": False, "hide": ["cost"]}
+COMPACT = {"dir", "branch", "model", "effort", "ctx", "5h", "7d"}
+
+# segment: (text label, emoji label). Emoji are default-emoji-presentation
+# code points (no U+FE0F) so terminals agree on their two-column width.
+LABELS = {
+    "dir": ("", "📁"), "branch": ("⎇", "🌿"), "worktree": ("wt", "🌳"),
+    "pr": ("", "🔀"), "model": ("", "🧠"), "tier": ("", "💳"),
+    "effort": ("effort", "⚡"), "thinking": ("", "💭"), "fast": ("", "🚀"),
+    "ctx": ("ctx", "📊"), "5h": ("5h", "⏳ 5h"), "7d": ("7d", "📅 7d"),
+    "sid": ("sid", "🆔"), "name": ("", "💬"), "duration": ("", "⌛"),
+    "lines": ("", "📝"), "cost": ("", "💰"), "style": ("style", "🎨"),
+    "agent": ("agent", "🤖"),
+}
+
+TIERS = {"claude_pro": "Pro", "claude_max": "Max", "claude_team": "Team",
+         "claude_enterprise": "Enterprise"}
+
+SAMPLE = {
+    "session_id": "3896c0b5-1d98-42fa-b3fb-cc4d0ea2b117",
+    "session_name": "workspace setup",
+    "model": {"id": "claude-opus-5-5", "display_name": "Opus 5.5"},
+    "workspace": {"current_dir": os.path.expanduser("~/developer/dotfiles")},
+    "cost": {"total_cost_usd": 1.8, "total_duration_ms": 754000,
+             "total_lines_added": 120, "total_lines_removed": 30},
+    "context_window": {"used_percentage": 42, "total_input_tokens": 84000,
+                       "context_window_size": 200000},
+    "effort": {"level": "high"}, "thinking": {"enabled": True},
+    "rate_limits": {
+        "five_hour": {"used_percentage": 23.5, "resets_at": time.time() + 8040},
+        "seven_day": {"used_percentage": 88, "resets_at": time.time() + 274000},
+    },
+}
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m|\x1b\]8;;[^\x07]*\x07")
+GIT_TTL = 5.0
+GIT_TIMEOUT = 1.0
+
+
+# ── paths and preferences ────────────────────────────────────────────────────
+
+def _xdg(var, fallback):
+    return os.path.join(os.environ.get(var) or os.path.expanduser(fallback),
+                        "claude-statusline")
+
+
+def config_dir():
+    return _xdg("XDG_CONFIG_HOME", "~/.config")
+
+
+def cache_dir():
+    return _xdg("XDG_CACHE_HOME", "~/.cache")
+
+
+def prefs_path():
+    return os.path.join(config_dir(), "prefs.json")
+
+
+def load_prefs(apply_env=True):
+    prefs = {"emoji": DEFAULT_PREFS["emoji"], "compact": DEFAULT_PREFS["compact"],
+             "hide": list(DEFAULT_PREFS["hide"])}
+    try:
+        with open(prefs_path()) as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            for key in ("emoji", "compact"):
+                if isinstance(data.get(key), bool):
+                    prefs[key] = data[key]
+            if isinstance(data.get("hide"), list):
+                prefs["hide"] = [s for s in data["hide"] if s in SEGMENTS]
+    except (OSError, ValueError):
+        pass
+    if apply_env:
+        for key in ("emoji", "compact"):
+            value = os.environ.get("STATUSLINE_" + key.upper())
+            if value in ("0", "1"):
+                prefs[key] = value == "1"
+    return prefs
+
+
+def save_prefs(prefs):
+    os.makedirs(config_dir(), exist_ok=True)
+    tmp = prefs_path() + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(prefs, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, prefs_path())
+
+
+# ── small formatters ─────────────────────────────────────────────────────────
+
+def get(data, *path):
+    for key in path:
+        if not isinstance(data, dict):
+            return None
+        data = data.get(key)
+    return data
+
+
+def num(value):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def tokens(n):
+    if n >= 1_000_000:
+        return "%.1fM" % (n / 1_000_000)
+    if n >= 1000:
+        return "%dk" % round(n / 1000)
+    return str(int(n))
+
+
+def countdown(seconds):
+    seconds = int(seconds)
+    if seconds <= 0:
+        return "now"
+    minutes = seconds // 60
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    if days:
+        return "%dd%dh" % (days, hours)
+    if hours:
+        return "%dh%02dm" % (hours, minutes)
+    return "%dm" % max(minutes, 1)
+
+
+def duration(ms):
+    minutes = int(ms // 60000)
+    if minutes < 1:
+        return "<1m"
+    hours, minutes = divmod(minutes, 60)
+    return "%dh%02dm" % (hours, minutes) if hours else "%dm" % minutes
+
+
+def short_path(path, home):
+    if home and (path == home or path.startswith(home + os.sep)):
+        path = "~" + path[len(home):]
+    parts = path.split(os.sep)
+    if len(path) > 40 and len(parts) > 3:
+        path = os.sep.join([parts[0], "…"] + parts[-2:])
+    return path
+
+
+def truncate(text, limit):
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
+
+def vwidth(text):
+    width = 0
+    for ch in ANSI_RE.sub("", text):
+        if unicodedata.combining(ch) or ch in "\u200d\ufe0e\ufe0f":
+            continue
+        width += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+    return width
+
+
+class Paint:
+    def __init__(self, enabled):
+        self.enabled = enabled
+
+    def __call__(self, code, text):
+        return "\x1b[%sm%s\x1b[0m" % (code, text) if self.enabled and text else text
+
+    def link(self, url, text):
+        return "\x1b]8;;%s\x07%s\x1b]8;;\x07" % (url, text) if self.enabled else text
+
+
+def level_colour(pct):
+    return "32" if pct < 60 else "33" if pct < 85 else "31"
+
+
+def bar(paint, pct, width=8):
+    filled = max(0, min(width, int(round(pct / 100.0 * width))))
+    return paint(level_colour(pct), "━" * filled) + paint("2", "━" * (width - filled))
+
+
+# ── external facts: git and plan tier ────────────────────────────────────────
+
+def parse_git_status(out):
+    info = {"branch": None, "ahead": 0, "behind": 0, "dirty": False}
+    for line in out.splitlines():
+        if line.startswith("# branch.head "):
+            head = line[len("# branch.head "):]
+            info["branch"] = None if head == "(detached)" else head
+        elif line.startswith("# branch.ab "):
+            match = re.match(r"# branch\.ab \+(\d+) -(\d+)", line)
+            if match:
+                info["ahead"], info["behind"] = int(match.group(1)), int(match.group(2))
+        elif line and not line.startswith("#"):
+            info["dirty"] = True
+    return info
+
+
+def git_info(cwd):
+    """Branch/dirty/ahead/behind for cwd, cached briefly; None outside a repo."""
+    cache = os.path.join(cache_dir(), "git-%s.json" % hashlib.sha1(cwd.encode()).hexdigest()[:12])
+    try:
+        if time.time() - os.stat(cache).st_mtime < GIT_TTL:
+            with open(cache) as f:
+                return json.load(f)
+    except (OSError, ValueError):
+        pass
+    try:
+        proc = subprocess.run(
+            ["git", "--no-optional-locks", "-C", cwd, "status", "--porcelain=v2", "--branch"],
+            capture_output=True, text=True, timeout=GIT_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return {"branch": None, "slow": True}
+    info = parse_git_status(proc.stdout) if proc.returncode == 0 else None
+    try:
+        os.makedirs(cache_dir(), exist_ok=True)
+        with open(cache, "w") as f:
+            json.dump(info, f)
+    except OSError:
+        pass
+    return info
+
+
+def plan_tier():
+    """Plan name from Claude Code's own account cache; None if unknown.
+
+    `oauthAccount` in ~/.claude.json is undocumented, so any surprise here
+    just hides the segment.
+    """
+    base = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~")
+    try:
+        with open(os.path.join(base, ".claude.json")) as f:
+            account = json.load(f).get("oauthAccount") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not isinstance(account, dict):
+        return None
+    org = account.get("organizationType") or ""
+    name = TIERS.get(org) or (org[len("claude_"):].title() if org.startswith("claude_") else None)
+    limit = "%s %s" % (account.get("userRateLimitTier") or "", account.get("organizationRateLimitTier") or "")
+    multiple = re.search(r"max_(\d+)x", limit)
+    if name == "Max" and multiple:
+        name = "Max %sx" % multiple.group(1)
+    return name
+
+
+# ── rendering ────────────────────────────────────────────────────────────────
+
+class Renderer:
+    def __init__(self, data, prefs, colour, now=None):
+        self.d = data if isinstance(data, dict) else {}
+        self.prefs = prefs
+        self.p = Paint(colour)
+        self.now = time.time() if now is None else now
+
+    def label(self, seg, value):
+        text, emoji = LABELS[seg]
+        prefix = emoji if self.prefs["emoji"] else text
+        if not value:
+            return prefix if self.prefs["emoji"] else ""
+        return "%s %s" % (prefix, value) if prefix else value
+
+    # Each builder returns a list of (segment, priority, text); lower priority
+    # survives longer when the row is too wide.
+
+    def where(self):
+        p, d = self.p, self.d
+        out = []
+        cwd = get(d, "workspace", "current_dir") or get(d, "cwd") or os.getcwd()
+        out.append(("dir", 0, self.label("dir", p("36", short_path(cwd, os.path.expanduser("~"))))))
+        git = git_info(cwd) if os.path.isdir(cwd) else None
+        if git and git.get("branch"):
+            text = p("35", git["branch"])
+            if git.get("dirty"):
+                text += p("33", "*")
+            if git.get("ahead"):
+                text += p("2", " ↑%d" % git["ahead"])
+            if git.get("behind"):
+                text += p("2", " ↓%d" % git["behind"])
+            out.append(("branch", 1, self.label("branch", text)))
+        elif git and git.get("slow"):
+            out.append(("branch", 1, self.label("branch", p("2", "git…"))))
+        worktree = get(d, "worktree", "name") or get(d, "workspace", "git_worktree")
+        if worktree:
+            out.append(("worktree", 2, self.label("worktree", p("32", worktree))))
+        pr = num(get(d, "pr", "number"))
+        if pr:
+            text = "%s #%d" % ("MR" if get(d, "pr", "kind") == "mr" else "PR", pr)
+            url = get(d, "pr", "url")
+            out.append(("pr", 5, self.label("pr", p.link(url, text) if url else text)))
+        return out
+
+    def who(self):
+        p, d = self.p, self.d
+        out = []
+        model = get(d, "model", "display_name") or get(d, "model", "id")
+        if model:
+            out.append(("model", 0, self.label("model", p("1", model))))
+        if "tier" not in self.prefs["hide"]:
+            tier = plan_tier()
+            if tier:
+                out.append(("tier", 4, self.label("tier", p("34", tier))))
+        effort = get(d, "effort", "level")
+        if effort:
+            out.append(("effort", 2, self.label("effort", effort)))
+        if get(d, "thinking", "enabled") is True:
+            out.append(("thinking", 3, self.label("thinking", "" if self.prefs["emoji"] else "think")))
+        if get(d, "fast_mode") is True:
+            out.append(("fast", 3, self.label("fast", "" if self.prefs["emoji"] else "fast")))
+        return out
+
+    def ctx(self, with_bar=True):
+        p, d = self.p, self.d
+        pct = num(get(d, "context_window", "used_percentage"))
+        if pct is None:
+            return [("ctx", 0, self.label("ctx", p("2", "—")))]
+        text = p(level_colour(pct), "%d%%" % round(pct))
+        if with_bar:
+            text = bar(p, pct, 10) + " " + text
+            used, size = num(get(d, "context_window", "total_input_tokens")), num(get(d, "context_window", "context_window_size"))
+            if used is not None and size:
+                text += p("2", " %s/%s" % (tokens(used), tokens(size)))
+        return [("ctx", 0, self.label("ctx", text))]
+
+    def limits(self, with_bar=True):
+        p, d = self.p, self.d
+        out = []
+        for seg, key, prio in (("5h", "five_hour", 1), ("7d", "seven_day", 2)):
+            pct = num(get(d, "rate_limits", key, "used_percentage"))
+            if pct is None:
+                continue
+            text = p(level_colour(pct), "%d%%" % round(pct))
+            if with_bar:
+                text = bar(p, pct) + " " + text
+                resets = num(get(d, "rate_limits", key, "resets_at"))
+                if resets:
+                    text += p("2", " ↻%s" % countdown(resets - self.now))
+            out.append((seg, prio, self.label(seg, text)))
+        return out
+
+    def session(self):
+        p, d = self.p, self.d
+        out = []
+        sid = get(d, "session_id")
+        if isinstance(sid, str) and sid:
+            out.append(("sid", 1, self.label("sid", p("2", sid[:8]))))
+        name = get(d, "session_name")
+        if isinstance(name, str) and name:
+            out.append(("name", 2, self.label("name", truncate(name, 28))))
+        ms = num(get(d, "cost", "total_duration_ms"))
+        if ms:
+            out.append(("duration", 3, self.label("duration", duration(ms))))
+        added = num(get(d, "cost", "total_lines_added")) or 0
+        removed = num(get(d, "cost", "total_lines_removed")) or 0
+        if added or removed:
+            out.append(("lines", 4, self.label("lines", p("32", "+%d" % added) + " " + p("31", "−%d" % removed))))
+        usd = num(get(d, "cost", "total_cost_usd"))
+        if usd is not None:
+            out.append(("cost", 4, self.label("cost", "~$%.2f" % usd)))
+        style = get(d, "output_style", "name")
+        if style and style != "default":
+            out.append(("style", 5, self.label("style", style)))
+        agent = get(d, "agent", "name")
+        if agent:
+            out.append(("agent", 3, self.label("agent", agent)))
+        return out
+
+    def row(self, groups, width):
+        """Join groups of segments, dropping low-priority ones to fit width."""
+        hide = set(self.prefs["hide"])
+        groups = [[s for s in g if s[0] not in hide] for g in groups]
+        while True:
+            line = self.p("2", " │ ").join(
+                "  ".join(s[2] for s in g) for g in groups if g)
+            if not width or vwidth(line) <= width:
+                return line
+            candidates = [(s[1], gi, si) for gi, g in enumerate(groups)
+                          for si, s in enumerate(g) if s[1] > 0]
+            if not candidates:
+                return line
+            _, gi, si = max(candidates)
+            del groups[gi][si]
+
+    def render(self, width=0):
+        if self.prefs["compact"]:
+            def keep(segs):
+                return [s for s in segs if s[0] in COMPACT]
+            rows = [[keep(self.where()), keep(self.who()), self.ctx(False) + self.limits(False)]]
+        else:
+            rows = [[self.where(), self.who()], [self.ctx(), self.limits()], [self.session()]]
+        lines = [self.row(groups, width) for groups in rows]
+        return "\n".join(line for line in lines if line)
+
+
+def terminal_width():
+    try:
+        return max(0, int(os.environ.get("COLUMNS", "0")) - 4)
+    except ValueError:
+        return 0
+
+
+def colour_enabled():
+    return "NO_COLOR" not in os.environ
+
+
+def render_stdin():
+    raw = sys.stdin.read()
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+    except ValueError:
+        data = {}
+    if isinstance(data, dict) and data:
+        try:
+            os.makedirs(cache_dir(), exist_ok=True)
+            with open(os.path.join(cache_dir(), "last.json"), "w") as f:
+                f.write(raw)
+        except OSError:
+            pass
+    print(Renderer(data, load_prefs(), colour_enabled()).render(terminal_width()))
+
+
+# ── preferences CLI ──────────────────────────────────────────────────────────
+
+def last_input():
+    try:
+        with open(os.path.join(cache_dir(), "last.json")) as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data, "last real session input"
+    except (OSError, ValueError):
+        pass
+    return SAMPLE, "sample input (no real session seen yet)"
+
+
+def preview(all_styles):
+    data, source = last_input()
+    width = terminal_width() or 100
+    prefs = load_prefs()
+    styles = [("current", prefs)]
+    if all_styles:
+        styles = [(name, dict(prefs, emoji=e, compact=c)) for name, e, c in (
+            ("text", False, False), ("emoji", True, False),
+            ("compact", False, True), ("compact + emoji", True, True))]
+    print("Preview from %s:\n" % source)
+    for name, style in styles:
+        print("── %s ──" % name)
+        print(Renderer(data, style, colour_enabled()).render(width))
+        print()
+
+
+def show_status():
+    prefs = load_prefs(apply_env=False)
+    print("emoji:   %s" % ("on" if prefs["emoji"] else "off"))
+    print("compact: %s" % ("on" if prefs["compact"] else "off"))
+    print("hidden:  %s" % (", ".join(prefs["hide"]) or "none"))
+    print("prefs:   %s\n" % prefs_path())
+    preview(False)
+
+
+def cli(args):
+    if not args or args[0] in ("status", "show-prefs"):
+        show_status()
+        return 0
+    cmd, rest = args[0], args[1:]
+    if cmd in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    if cmd == "preview":
+        preview(True)
+        return 0
+    prefs = load_prefs(apply_env=False)
+    if cmd in ("emoji", "compact"):
+        if rest and rest[0] not in ("on", "off"):
+            print("usage: statusline %s [on|off]" % cmd, file=sys.stderr)
+            return 2
+        prefs[cmd] = (rest[0] == "on") if rest else not prefs[cmd]
+        save_prefs(prefs)
+        print("%s %s — applies on the next status line refresh" % (cmd, "on" if prefs[cmd] else "off"))
+        return 0
+    if cmd in ("hide", "show"):
+        unknown = [s for s in rest if s not in SEGMENTS]
+        if not rest or unknown:
+            print("usage: statusline %s <segment>...\nsegments: %s" % (cmd, " ".join(SEGMENTS)), file=sys.stderr)
+            return 2
+        hidden = [s for s in prefs["hide"] if s not in rest]
+        prefs["hide"] = hidden + list(rest) if cmd == "hide" else hidden
+        save_prefs(prefs)
+        print("hidden: %s" % (", ".join(prefs["hide"]) or "none"))
+        return 0
+    print("unknown command %r; see statusline --help" % cmd, file=sys.stderr)
+    return 2
+
+
+def main():
+    if len(sys.argv) > 1 or sys.stdin.isatty():
+        try:
+            return cli(sys.argv[1:])
+        except OSError as exc:
+            print("statusline: cannot write %s (%s)" % (exc.filename or prefs_path(), exc.strerror),
+                  file=sys.stderr)
+            return 1
+    try:
+        render_stdin()
+    except Exception as exc:  # the bar must never go blank on a bug
+        print("statusline: %s" % exc.__class__.__name__)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

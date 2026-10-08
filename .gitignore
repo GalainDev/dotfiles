@@ -8,3 +8,6 @@ home/.config/herdr/release-notes.json
 .DS_Store
 result
 result-*
+
+# Python bytecode (statusline tests)
+__pycache__/

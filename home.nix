@@ -94,6 +94,11 @@ in
   home.file.".claude/agents".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/agents";
 
+  # Status line: settings.json runs the script straight from ~/.dotfiles (no
+  # rebuild needed for edits); this puts its prefs CLI on PATH as `statusline`.
+  home.file.".local/bin/statusline".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/statusline/statusline.py";
+
   # ── Session lifecycle skills (new-day / wind-down) ─────────────────────────
   # Canonical source is the separate `AI` repo (github.com/GalainDev/AI),
   # cloned to ~/developer/AI. Claude and Codex both read the same SKILL.md.

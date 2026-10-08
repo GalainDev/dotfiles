@@ -62,7 +62,7 @@
   "sandbox": {
     "enabled": true,
     "filesystem": {
-      "allowWrite": ["~/.runes"]
+      "allowWrite": ["~/.runes", "~/.config/claude-statusline"]
     },
     "network": {
       "allowLocalBinding": true,
@@ -109,6 +109,7 @@
   "agentPushNotifEnabled": true,
   "statusLine": {
     "type": "command",
-    "command": "input=$(cat); dir=$(echo \"$input\" | jq -r '.workspace.current_dir'); d=$(echo \"$dir\" | sed \"s|^$HOME|~|\"); b=$(git --no-optional-locks -C \"$dir\" branch --show-current 2>/dev/null); dirty=$(git --no-optional-locks -C \"$dir\" status --porcelain 2>/dev/null | head -1); out=$(printf '\\033[36m%s\\033[0m' \"$d\"); [ -n \"$b\" ] && out=\"$out $(printf '\\033[35m%s\\033[0m' \"$b\")\"; [ -n \"$dirty\" ] && out=\"$out$(printf '\\033[33m*\\033[0m')\"; m=$(echo \"$input\" | jq -r '.model.display_name'); ctx=$(echo \"$input\" | jq -r '.context_window.used_percentage // empty'); out=\"$out $(printf '\\033[2m| %s' \"$m\")\"; [ -n \"$ctx\" ] && out=\"$out $(printf '%.0f%% ctx' \"$ctx\")\"; printf '%s\\033[0m\\n' \"$out\""
+    "command": "python3 ~/.dotfiles/home/.claude/statusline/statusline.py",
+    "refreshInterval": 30
   }
 }
