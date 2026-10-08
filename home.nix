@@ -115,6 +115,10 @@ in
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/chronicle";
   home.file.".codex/skills/chronicle".source =
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/chronicle";
+  home.file.".claude/skills/healthcheck".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/healthcheck";
+  home.file.".codex/skills/healthcheck".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/healthcheck";
   # ── One AGENTS.md, every provider (harness Phase 1) ───────────────────────
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";

@@ -70,6 +70,7 @@
       "jq"             # used constantly by our own tooling
       "lazygit"        # git TUI outside nvim (complements neogit, <leader>g)
       "neovim"
+      "ripgrep"        # `rg`: AGENTS.md tells every agent to search with it
       "tmux"
       "yazi"           # terminal file manager w/ previews (complements oil.nvim, <leader>e)
       "zoxide"         # wired into home.nix shell config
