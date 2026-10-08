@@ -27,8 +27,10 @@
       "Bash(twine upload *)",
       "Bash(docker push *)",
       "Bash(gh release create *)",
-      "Bash(gh repo create *)",
       "Bash(dolt push *)"
+    ],
+    "ask": [
+      "Bash(gh repo create *)"
     ],
     "defaultMode": "auto"
   },
@@ -109,7 +111,7 @@
   "agentPushNotifEnabled": true,
   "statusLine": {
     "type": "command",
-    "command": "python3 ~/.dotfiles/home/.claude/statusline/statusline.py",
+    "command": "python3 ~/developer/glance/statusline.py",
     "refreshInterval": 30
   }
 }

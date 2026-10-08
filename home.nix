@@ -94,10 +94,11 @@ in
   home.file.".claude/agents".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/agents";
 
-  # Status line: settings.json runs the script straight from ~/.dotfiles (no
-  # rebuild needed for edits); this puts its prefs CLI on PATH as `statusline`.
+  # Status line: the separate `glance` repo (github.com/GalainDev/glance),
+  # cloned to ~/developer/glance. settings.json runs it from there (no rebuild
+  # needed for edits); this puts its prefs CLI on PATH as `statusline`.
   home.file.".local/bin/statusline".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/statusline/statusline.py";
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/glance/statusline.py";
 
   # ── Session lifecycle skills (new-day / wind-down) ─────────────────────────
   # Canonical source is the separate `AI` repo (github.com/GalainDev/AI),

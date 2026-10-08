@@ -33,6 +33,10 @@ if [ ! -d ~/developer/AI ]; then
 else
   echo "    ~/developer/AI already exists, skipping"
 fi
+# Claude Code status line (settings.json + home.nix point into it). Public repo.
+if [ ! -d ~/developer/glance ]; then
+  git clone https://github.com/GalainDev/glance.git ~/developer/glance
+fi
 
 echo "==> Step 4: sanity-check the flake user"
 REAL_USER="$(whoami)"
