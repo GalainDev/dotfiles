@@ -19,13 +19,34 @@
       "Read(**/id_rsa)",
       "Read(**/id_ed25519)",
       "Read(**/*credentials.json)",
-      "Read(**/serviceAccountKey*.json)"
+      "Read(**/serviceAccountKey*.json)",
+      "Bash(npm publish *)",
+      "Bash(pnpm publish *)",
+      "Bash(yarn npm publish *)",
+      "Bash(cargo publish *)",
+      "Bash(twine upload *)",
+      "Bash(docker push *)",
+      "Bash(gh release create *)",
+      "Bash(gh repo create *)",
+      "Bash(dolt push *)"
     ],
     "defaultMode": "auto"
   },
   "model": "opus",
   "enabledPlugins": {},
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/guard-bash.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
