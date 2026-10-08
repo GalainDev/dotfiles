@@ -25,6 +25,19 @@
   },
   "model": "opus",
   "enabledPlugins": {},
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-start.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  },
   "sandbox": {
     "enabled": true,
     "filesystem": {

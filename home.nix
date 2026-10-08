@@ -86,6 +86,14 @@ in
   home.file.".claude/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/settings.json";
 
+  # Claude Code hooks (SessionStart, PreToolUse guard) and subagents
+  # (chronicle-scribe). Whole directories: add a file under home/.claude/{hooks,agents}
+  # and it is live without a rebuild.
+  home.file.".claude/hooks".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/hooks";
+  home.file.".claude/agents".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/agents";
+
   # ── Session lifecycle skills (new-day / wind-down) ─────────────────────────
   # Canonical source is the separate `AI` repo (github.com/GalainDev/AI),
   # cloned to ~/developer/AI. Claude and Codex both read the same SKILL.md.
