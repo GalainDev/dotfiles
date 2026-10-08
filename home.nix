@@ -29,6 +29,9 @@ in
   #    ~/.zshrc.before-nix on first switch) ────────────────────────────────
   programs.zsh = {
     enable = true;
+    # .zshenv runs for non-interactive shells too (agent Bash tools), so
+    # go-installed CLIs (chron, rune) resolve everywhere, not just in terminals.
+    envExtra = ''export PATH="$PATH:$HOME/go/bin"'';
     autosuggestion.enable = true;      # ghost-text suggestions from history
     syntaxHighlighting.enable = true;  # valid commands turn green as you type
     initContent = ''
@@ -36,7 +39,6 @@ in
 
       # ── ported verbatim from my pre-nix ~/.zshrc ──
       export PATH="$HOME/.local/bin:$PATH"   # native claude takes priority
-      export PATH="$PATH:$HOME/go/bin"       # go install targets: chron, rune
       alias claude-a='claude --permission-mode auto'
       alias claude-dsp='claude --dangerously-skip-permissions'
       alias codex-dsp='codex --dangerously-bypass-approvals-and-sandbox'
