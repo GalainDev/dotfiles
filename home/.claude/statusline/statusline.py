@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Code status line: colour-coded rows for limits, model and folder
+"""Claude Code status line: colour-coded rows for limits, folder and model
 (plus an opt-in session row: id, name, duration, lines changed).
 
 Claude Code runs this with the session JSON on stdin (settings.json
@@ -437,11 +437,11 @@ class Renderer:
             return self.row([keep(self.where()), keep(self.who()),
                              self.ctx(False) + self.limits(False)], width)
         # Gauges first: the row nearest the input box changes every turn.
-        # Location last, next to Claude Code's permission-mode footer.
+        # Then location, then model, which rarely changes in a session.
         lines = [
             self.row([self.ctx()] + [[s] for s in self.limits()], width, sep=SEP),
-            self.row([self.who(), self.sid()], width, sep=SEP),
             self.row([self.where()], width),
+            self.row([self.who(), self.sid()], width, sep=SEP),
             self.row([self.session()], width),
         ]
         rows = [line for line in lines if line]

@@ -95,15 +95,15 @@ class RenderTests(unittest.TestCase):
     def test_default_layout(self):
         rows = self.rows()
         self.assertEqual(len(rows), 3, rows)  # location, model, gauges
-        self.assertTrue(rows[2].startswith("📁 ~/code/app"), rows[2])
-        self.assertIn("🌿 none", rows[2])  # not a git repo
-        self.assertIn("🌳 feature-x", rows[2])
-        self.assertIn("PR #12", rows[2])
-        self.assertNotIn("Opus", rows[2])
-        self.assertTrue(rows[1].startswith("🧠 Opus 5.5"), rows[1])
-        self.assertIn("⚡ high", rows[1])
-        self.assertTrue(rows[1].endswith("│  sid: abcdef12"), rows[1])
-        self.assertNotIn("think", rows[1])
+        self.assertTrue(rows[1].startswith("📁 ~/code/app"), rows[1])
+        self.assertIn("🌿 none", rows[1])  # not a git repo
+        self.assertIn("🌳 feature-x", rows[1])
+        self.assertIn("PR #12", rows[1])
+        self.assertNotIn("Opus", rows[1])
+        self.assertTrue(rows[2].startswith("🧠 Opus 5.5"), rows[2])
+        self.assertIn("⚡ high", rows[2])
+        self.assertTrue(rows[2].endswith("│  sid: abcdef12"), rows[2])
+        self.assertNotIn("think", rows[2])
         self.assertTrue(rows[0].startswith("ctx"), rows[0])
         self.assertIn("42%", rows[0])
         self.assertNotIn("84k", rows[0])
@@ -127,7 +127,7 @@ class RenderTests(unittest.TestCase):
     def test_80_column_pane_keeps_weekly(self):
         rows = self.rows(COLUMNS="80")
         self.assertEqual(len(rows), 3, rows)
-        self.assertIn("sid: abcdef12", rows[1])
+        self.assertIn("sid: abcdef12", rows[2])
         self.assertIn("7d", rows[0])
         self.assertIn("↻3d4h", rows[0])
         for row in rows:
@@ -137,8 +137,8 @@ class RenderTests(unittest.TestCase):
         rows = self.rows(COLUMNS="54")
         for row in rows:
             self.assertLessEqual(statusline.vwidth(row), 50, row)
-        self.assertTrue(rows[2].startswith("📁 ~/code/app"))
-        self.assertTrue(rows[1].startswith("🧠 Opus 5.5"))
+        self.assertTrue(rows[1].startswith("📁 ~/code/app"))
+        self.assertTrue(rows[2].startswith("🧠 Opus 5.5"))
         self.assertIn("ctx", rows[0])
         self.assertIn("5h", rows[0])     # weekly drops before the 5-hour gauge
         self.assertNotIn("7d", rows[0])
@@ -156,7 +156,7 @@ class RenderTests(unittest.TestCase):
     def test_no_worktree_shows_none(self):
         data = full_input(self.e.project)
         del data["worktree"]
-        self.assertIn("🌳 none", self.rows(data)[2])
+        self.assertIn("🌳 none", self.rows(data)[1])
 
     def test_colours_follow_thresholds(self):
         out = self.e.render(full_input(self.e.project)).stdout
@@ -197,23 +197,23 @@ class RenderTests(unittest.TestCase):
         git = ["git", "-C", repo, "-c", "user.name=t", "-c", "user.email=t@t"]
         subprocess.run(git + ["init", "-q", "-b", "trunk"], check=True, env=self.e.env)
         subprocess.run(git + ["commit", "-q", "--allow-empty", "-m", "x"], check=True, env=self.e.env)
-        clean = self.rows(full_input(repo))[2]
+        clean = self.rows(full_input(repo))[1]
         self.assertIn("🌿 trunk", clean)
         self.assertNotIn("trunk*", clean)
         with open(os.path.join(repo, "f"), "w") as f:
             f.write("x")
         # git info is cached for a few seconds; a new cache dir forces a re-read
-        dirty = self.rows(full_input(repo), XDG_CACHE_HOME=os.path.join(self.e.home, "c2"))[2]
+        dirty = self.rows(full_input(repo), XDG_CACHE_HOME=os.path.join(self.e.home, "c2"))[1]
         self.assertIn("🌿 trunk*", dirty)
 
     def test_tier_from_account(self):
         self.e.account(organizationType="claude_max", userRateLimitTier="default_claude_max_20x")
-        self.assertIn("Max 20x", self.rows()[1])
+        self.assertIn("Max 20x", self.rows()[2])
         self.e.account(organizationType="claude_pro", organizationRateLimitTier="default_claude_ai")
-        self.assertIn("Pro", self.rows()[1])
+        self.assertIn("Pro", self.rows()[2])
 
     def test_tier_missing_or_odd_account(self):
-        self.assertNotIn("Pro", self.rows()[1])  # no ~/.claude.json
+        self.assertNotIn("Pro", self.rows()[2])  # no ~/.claude.json
         with open(os.path.join(self.e.home, ".claude.json"), "w") as f:
             f.write('{"oauthAccount": "weird"}')
         self.rows()
@@ -237,7 +237,7 @@ class PrefsTests(unittest.TestCase):
 
     def test_emoji_toggle_applies_without_restart(self):
         rows = self.rows()
-        self.assertIn("🧠 Opus 5.5", rows[1])  # folder/model/effort always carry emoji
+        self.assertIn("🧠 Opus 5.5", rows[2])  # folder/model/effort always carry emoji
         self.assertNotIn("⏳", rows[0])
         self.assertIn("emoji on", self.e.cli("emoji").stdout)
         rows = self.rows()
@@ -269,13 +269,13 @@ class PrefsTests(unittest.TestCase):
 
     def test_hide_and_show(self):
         self.e.account(organizationType="claude_pro")
-        self.assertIn("Pro", self.rows()[1])
+        self.assertIn("Pro", self.rows()[2])
         self.e.cli("hide", "tier", "sid")
         self.e.cli("show", "cost", "thinking")
         rows = self.rows()
-        self.assertNotIn("Pro", rows[1])
-        self.assertNotIn("sid:", rows[1])
-        self.assertIn("thinking", rows[1])
+        self.assertNotIn("Pro", rows[2])
+        self.assertNotIn("sid:", rows[2])
+        self.assertIn("thinking", rows[2])
         self.assertIn("~$2.50", rows[3])
         self.assertNotIn("status line work", rows[3])
         with open(self.e.prefs_file()) as f:
@@ -286,7 +286,7 @@ class PrefsTests(unittest.TestCase):
         self.e.cli("hide", "cost", "thinking")  # back to the defaults
         rows = self.rows()
         self.assertEqual(len(rows), 3)
-        self.assertIn("sid:", rows[1])
+        self.assertIn("sid:", rows[2])
 
     def test_old_prefs_do_not_pin_old_defaults(self):
         os.makedirs(os.path.dirname(self.e.prefs_file()))
@@ -294,7 +294,7 @@ class PrefsTests(unittest.TestCase):
             json.dump({"emoji": False, "compact": False, "hide": ["cost"]}, f)
         rows = self.rows()
         self.assertEqual(len(rows), 3)  # session row stays hidden
-        self.assertIn("sid:", rows[1])     # sid shown by the newer default
+        self.assertIn("sid:", rows[2])     # sid shown by the newer default
 
     def test_bar_styles(self):
         self.assertIn("█", self.rows()[0])  # block is the default
