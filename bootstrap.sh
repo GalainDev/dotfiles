@@ -23,10 +23,13 @@ ln -sfn "$DIR" ~/.dotfiles
 echo "==> Step 3: clone AI skills repo"
 # home.nix symlinks .claude/skills and .codex/skills entries out of this repo
 # (mkOutOfStoreSymlink doesn't clone anything — it just points at the path),
-# so it must exist on disk before the first switch too.
+# so it must exist on disk before the first switch too. The repo is private, so
+# clone through gh (run via nix — nothing else is installed yet) for the auth.
 if [ ! -d ~/developer/AI ]; then
   mkdir -p ~/developer
-  git clone https://github.com/GalainDev/AI.git ~/developer/AI
+  gh() { nix run nixpkgs#gh -- "$@"; }
+  gh auth status >/dev/null 2>&1 || gh auth login --hostname github.com --git-protocol https --web
+  gh repo clone GalainDev/AI ~/developer/AI
 else
   echo "    ~/developer/AI already exists, skipping"
 fi
