@@ -95,22 +95,22 @@ class RenderTests(unittest.TestCase):
     def test_default_layout(self):
         rows = self.rows()
         self.assertEqual(len(rows), 3, rows)  # location, model, gauges
-        self.assertTrue(rows[0].startswith("📁 ~/code/app"), rows[0])
-        self.assertIn("🌿 none", rows[0])  # not a git repo
-        self.assertIn("🌳 feature-x", rows[0])
-        self.assertIn("PR #12", rows[0])
-        self.assertNotIn("Opus", rows[0])
+        self.assertTrue(rows[2].startswith("📁 ~/code/app"), rows[2])
+        self.assertIn("🌿 none", rows[2])  # not a git repo
+        self.assertIn("🌳 feature-x", rows[2])
+        self.assertIn("PR #12", rows[2])
+        self.assertNotIn("Opus", rows[2])
         self.assertTrue(rows[1].startswith("🧠 Opus 5.5"), rows[1])
         self.assertIn("⚡ high", rows[1])
         self.assertTrue(rows[1].endswith("│  sid: abcdef12"), rows[1])
         self.assertNotIn("think", rows[1])
-        self.assertTrue(rows[2].startswith("ctx"), rows[2])
-        self.assertIn("42%", rows[2])
-        self.assertNotIn("84k", rows[2])
-        self.assertIn("24%", rows[2])  # 23.5 rounds half-to-even → 24
-        self.assertIn("↻2h14m", rows[2])
-        self.assertIn("7d", rows[2])
-        self.assertIn("↻3d4h", rows[2])
+        self.assertTrue(rows[0].startswith("ctx"), rows[0])
+        self.assertIn("42%", rows[0])
+        self.assertNotIn("84k", rows[0])
+        self.assertIn("24%", rows[0])  # 23.5 rounds half-to-even → 24
+        self.assertIn("↻2h14m", rows[0])
+        self.assertIn("7d", rows[0])
+        self.assertIn("↻3d4h", rows[0])
 
     def test_no_spacer_rows_by_default(self):
         out = self.e.render(full_input(self.e.project)).stdout
@@ -128,8 +128,8 @@ class RenderTests(unittest.TestCase):
         rows = self.rows(COLUMNS="80")
         self.assertEqual(len(rows), 3, rows)
         self.assertIn("sid: abcdef12", rows[1])
-        self.assertIn("7d", rows[2])
-        self.assertIn("↻3d4h", rows[2])
+        self.assertIn("7d", rows[0])
+        self.assertIn("↻3d4h", rows[0])
         for row in rows:
             self.assertLessEqual(statusline.vwidth(row), 76, row)
 
@@ -137,11 +137,11 @@ class RenderTests(unittest.TestCase):
         rows = self.rows(COLUMNS="54")
         for row in rows:
             self.assertLessEqual(statusline.vwidth(row), 50, row)
-        self.assertTrue(rows[0].startswith("📁 ~/code/app"))
+        self.assertTrue(rows[2].startswith("📁 ~/code/app"))
         self.assertTrue(rows[1].startswith("🧠 Opus 5.5"))
-        self.assertIn("ctx", rows[2])
-        self.assertIn("5h", rows[2])     # weekly drops before the 5-hour gauge
-        self.assertNotIn("7d", rows[2])
+        self.assertIn("ctx", rows[0])
+        self.assertIn("5h", rows[0])     # weekly drops before the 5-hour gauge
+        self.assertNotIn("7d", rows[0])
 
     def test_session_row_is_opt_in(self):
         self.e.cli("show", "name", "duration", "lines")
@@ -156,7 +156,7 @@ class RenderTests(unittest.TestCase):
     def test_no_worktree_shows_none(self):
         data = full_input(self.e.project)
         del data["worktree"]
-        self.assertIn("🌳 none", self.rows(data)[0])
+        self.assertIn("🌳 none", self.rows(data)[2])
 
     def test_colours_follow_thresholds(self):
         out = self.e.render(full_input(self.e.project)).stdout
@@ -188,8 +188,8 @@ class RenderTests(unittest.TestCase):
         data = full_input(self.e.project)
         del data["rate_limits"]
         rows = self.rows(data)
-        self.assertIn("ctx", rows[-1])
-        self.assertNotIn("7d", rows[-1])
+        self.assertIn("ctx", rows[0])
+        self.assertNotIn("7d", rows[0])
 
     def test_git_branch_and_dirty(self):
         repo = os.path.join(self.e.home, "repo")
@@ -197,13 +197,13 @@ class RenderTests(unittest.TestCase):
         git = ["git", "-C", repo, "-c", "user.name=t", "-c", "user.email=t@t"]
         subprocess.run(git + ["init", "-q", "-b", "trunk"], check=True, env=self.e.env)
         subprocess.run(git + ["commit", "-q", "--allow-empty", "-m", "x"], check=True, env=self.e.env)
-        clean = self.rows(full_input(repo))[0]
+        clean = self.rows(full_input(repo))[2]
         self.assertIn("🌿 trunk", clean)
         self.assertNotIn("trunk*", clean)
         with open(os.path.join(repo, "f"), "w") as f:
             f.write("x")
         # git info is cached for a few seconds; a new cache dir forces a re-read
-        dirty = self.rows(full_input(repo), XDG_CACHE_HOME=os.path.join(self.e.home, "c2"))[0]
+        dirty = self.rows(full_input(repo), XDG_CACHE_HOME=os.path.join(self.e.home, "c2"))[2]
         self.assertIn("🌿 trunk*", dirty)
 
     def test_tier_from_account(self):
@@ -238,11 +238,11 @@ class PrefsTests(unittest.TestCase):
     def test_emoji_toggle_applies_without_restart(self):
         rows = self.rows()
         self.assertIn("🧠 Opus 5.5", rows[1])  # folder/model/effort always carry emoji
-        self.assertNotIn("⏳", rows[2])
+        self.assertNotIn("⏳", rows[0])
         self.assertIn("emoji on", self.e.cli("emoji").stdout)
         rows = self.rows()
-        self.assertIn("⏳ 5h", rows[2])
-        self.assertIn("📊", rows[2])
+        self.assertIn("⏳ 5h", rows[0])
+        self.assertIn("📊", rows[0])
         self.assertIn("emoji off", self.e.cli("emoji", "off").stdout)
         self.assertNotIn("⏳", "\n".join(self.rows()))
 
@@ -297,12 +297,12 @@ class PrefsTests(unittest.TestCase):
         self.assertIn("sid:", rows[1])     # sid shown by the newer default
 
     def test_bar_styles(self):
-        self.assertIn("█", self.rows()[2])  # block is the default
+        self.assertIn("█", self.rows()[0])  # block is the default
         self.assertIn("bars pill", self.e.cli("bars", "pill").stdout)
-        row = self.rows()[2]
+        row = self.rows()[0]
         self.assertIn("▰", row)
         self.assertNotIn("█", row)
-        self.assertIn("●", self.rows(STATUSLINE_BARS="dots")[2])
+        self.assertIn("●", self.rows(STATUSLINE_BARS="dots")[0])
         self.assertIn("bars:    pill", self.e.cli("status").stdout)
 
     def test_bad_cli_args(self):
