@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Claude Code status line: three colour-coded rows (where, limits, session).
+"""Claude Code status line: colour-coded rows for folder, model and limits
+(plus an opt-in session row: id, name, duration, lines changed).
 
 Claude Code runs this with the session JSON on stdin (settings.json
 `statusLine`). Run it from a terminal to change preferences:
@@ -7,7 +8,8 @@ Claude Code runs this with the session JSON on stdin (settings.json
   statusline                    show preferences and a preview
   statusline emoji [on|off]     emoji labels (toggles without an argument)
   statusline compact [on|off]   one row instead of three
-  statusline hide|show <seg>    hide or show a segment
+  statusline hide|show <seg>    hide or show a segment (thinking, sid, name,
+                                duration, lines, cost start hidden)
   statusline bars <style>       gauge style: block (default), pill, dots, line
   statusline preview            render the last real input in every style
 
@@ -30,7 +32,10 @@ SEGMENTS = (
     "fast", "ctx", "5h", "7d", "sid", "name", "duration", "lines", "cost",
     "style", "agent",
 )
-DEFAULT_PREFS = {"emoji": False, "compact": False, "bars": "block", "hide": ["cost"]}
+DEFAULT_PREFS = {"emoji": False, "compact": False, "bars": "block", "hide": [], "show": []}
+# Hidden unless `statusline show <seg>`. Prefs store only the user's changes
+# against this set, so changing a default later still takes effect.
+DEFAULT_HIDDEN = ("thinking", "sid", "name", "duration", "lines", "cost")
 COMPACT = {"dir", "branch", "model", "effort", "ctx", "5h", "7d"}
 
 # Gauge glyphs (filled, empty). All single-column in non-CJK terminals.
@@ -40,9 +45,9 @@ BAR_STYLES = {"block": ("█", "░"), "pill": ("▰", "▱"), "dots": ("●", "
 # segment: (text label, emoji label). Emoji are default-emoji-presentation
 # code points (no U+FE0F) so terminals agree on their two-column width.
 LABELS = {
-    "dir": ("", "📁"), "branch": ("⎇", "🌿"), "worktree": ("wt", "🌳"),
-    "pr": ("", "🔀"), "model": ("", "🧠"), "tier": ("", "💳"),
-    "effort": ("effort", "⚡"), "thinking": ("", "💭"), "fast": ("", "🚀"),
+    "dir": ("📁", "📁"), "branch": ("🌿", "🌿"), "worktree": ("🌳", "🌳"),
+    "pr": ("", "🔀"), "model": ("🧠", "🧠"), "tier": ("", "💳"),
+    "effort": ("⚡", "⚡"), "thinking": ("thinking", "💭"), "fast": ("fast", "🚀"),
     "ctx": ("ctx", "📊"), "5h": ("5h", "⏳ 5h"), "7d": ("7d", "📅 7d"),
     "sid": ("sid", "🆔"), "name": ("", "💬"), "duration": ("", "⌛"),
     "lines": ("", "📝"), "cost": ("", "💰"), "style": ("style", "🎨"),
@@ -53,8 +58,8 @@ TIERS = {"claude_pro": "Pro", "claude_max": "Max", "claude_team": "Team",
          "claude_enterprise": "Enterprise"}
 
 SAMPLE = {
-    "session_id": "3896c0b5-1d98-42fa-b3fb-cc4d0ea2b117",
-    "session_name": "workspace setup",
+    "session_id": "00000000-0000-4000-8000-000000000000",
+    "session_name": "sample session",
     "model": {"id": "claude-opus-5-5", "display_name": "Opus 5.5"},
     "workspace": {"current_dir": os.path.expanduser("~/developer/dotfiles")},
     "cost": {"total_cost_usd": 1.8, "total_duration_ms": 754000,
@@ -67,6 +72,11 @@ SAMPLE = {
         "seven_day": {"used_percentage": 88, "resets_at": time.time() + 274000},
     },
 }
+
+SEP = "  │  "
+# Spacer row between rows. Claude Code drops whitespace-only lines, so use
+# U+2800 BRAILLE PATTERN BLANK: it draws as blank but isn't whitespace.
+SPACER = "⠀"
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m|\x1b\]8;;[^\x07]*\x07")
 GIT_TTL = 5.0
@@ -93,7 +103,7 @@ def prefs_path():
 
 
 def load_prefs(apply_env=True):
-    prefs = dict(DEFAULT_PREFS, hide=list(DEFAULT_PREFS["hide"]))
+    prefs = dict(DEFAULT_PREFS, hide=[], show=[])
     try:
         with open(prefs_path()) as f:
             data = json.load(f)
@@ -103,8 +113,9 @@ def load_prefs(apply_env=True):
                     prefs[key] = data[key]
             if data.get("bars") in BAR_STYLES:
                 prefs["bars"] = data["bars"]
-            if isinstance(data.get("hide"), list):
-                prefs["hide"] = [s for s in data["hide"] if s in SEGMENTS]
+            for key in ("hide", "show"):
+                if isinstance(data.get(key), list):
+                    prefs[key] = [s for s in data[key] if s in SEGMENTS]
     except (OSError, ValueError):
         pass
     if apply_env:
@@ -115,6 +126,10 @@ def load_prefs(apply_env=True):
         if os.environ.get("STATUSLINE_BARS") in BAR_STYLES:
             prefs["bars"] = os.environ["STATUSLINE_BARS"]
     return prefs
+
+
+def hidden_segments(prefs):
+    return (set(DEFAULT_HIDDEN) | set(prefs["hide"])) - set(prefs["show"])
 
 
 def save_prefs(prefs):
@@ -140,14 +155,6 @@ def num(value):
     return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-def tokens(n):
-    if n >= 1_000_000:
-        return "%.1fM" % (n / 1_000_000)
-    if n >= 1000:
-        return "%dk" % round(n / 1000)
-    return str(int(n))
-
-
 def countdown(seconds):
     seconds = int(seconds)
     if seconds <= 0:
@@ -170,12 +177,11 @@ def duration(ms):
     return "%dh%02dm" % (hours, minutes) if hours else "%dm" % minutes
 
 
-def short_path(path, home):
+def display_path(path, home):
+    path = path.rstrip(os.sep) or os.sep
+    home = (home or "").rstrip(os.sep)
     if home and (path == home or path.startswith(home + os.sep)):
         path = "~" + path[len(home):]
-    parts = path.split(os.sep)
-    if len(path) > 40 and len(parts) > 3:
-        path = os.sep.join([parts[0], "…"] + parts[-2:])
     return path
 
 
@@ -286,12 +292,13 @@ class Renderer:
         self.prefs = prefs
         self.p = Paint(colour)
         self.now = time.time() if now is None else now
+        self.hidden = hidden_segments(prefs)
 
     def label(self, seg, value):
         text, emoji = LABELS[seg]
         prefix = emoji if self.prefs["emoji"] else text
         if not value:
-            return prefix if self.prefs["emoji"] else ""
+            return prefix
         return "%s %s" % (prefix, value) if prefix else value
 
     # Each builder returns a list of (segment, priority, text); lower priority
@@ -301,7 +308,7 @@ class Renderer:
         p, d = self.p, self.d
         out = []
         cwd = get(d, "workspace", "current_dir") or get(d, "cwd") or os.getcwd()
-        out.append(("dir", 0, self.label("dir", p("36", short_path(cwd, os.path.expanduser("~"))))))
+        out.append(("dir", 0, self.label("dir", p("36", display_path(cwd, os.path.expanduser("~"))))))
         git = git_info(cwd) if os.path.isdir(cwd) else None
         if git and git.get("branch"):
             text = p("35", git["branch"])
@@ -314,9 +321,15 @@ class Renderer:
             out.append(("branch", 1, self.label("branch", text)))
         elif git and git.get("slow"):
             out.append(("branch", 1, self.label("branch", p("2", "git…"))))
+        elif git is not None:  # in a repo with HEAD detached
+            out.append(("branch", 1, self.label("branch", p("2", "detached"))))
+        else:  # placeholders drop first when the row is too wide
+            out.append(("branch", 6, self.label("branch", p("2", "none"))))
         worktree = get(d, "worktree", "name") or get(d, "workspace", "git_worktree")
         if worktree:
             out.append(("worktree", 2, self.label("worktree", p("32", worktree))))
+        else:
+            out.append(("worktree", 6, self.label("worktree", p("2", "none"))))
         pr = num(get(d, "pr", "number"))
         if pr:
             text = "%s #%d" % ("MR" if get(d, "pr", "kind") == "mr" else "PR", pr)
@@ -330,7 +343,7 @@ class Renderer:
         model = get(d, "model", "display_name") or get(d, "model", "id")
         if model:
             out.append(("model", 0, self.label("model", p("1", model))))
-        if "tier" not in self.prefs["hide"]:
+        if "tier" not in self.hidden:
             tier = plan_tier()
             if tier:
                 out.append(("tier", 4, self.label("tier", p("34", tier))))
@@ -338,9 +351,9 @@ class Renderer:
         if effort:
             out.append(("effort", 2, self.label("effort", effort)))
         if get(d, "thinking", "enabled") is True:
-            out.append(("thinking", 3, self.label("thinking", "" if self.prefs["emoji"] else "think")))
+            out.append(("thinking", 3, self.label("thinking", "")))
         if get(d, "fast_mode") is True:
-            out.append(("fast", 3, self.label("fast", "" if self.prefs["emoji"] else "fast")))
+            out.append(("fast", 3, self.label("fast", "")))
         return out
 
     def ctx(self, with_bar=True):
@@ -351,9 +364,6 @@ class Renderer:
         text = p(level_colour(pct), "%d%%" % round(pct))
         if with_bar:
             text = bar(p, pct, 10, self.prefs["bars"]) + " " + text
-            used, size = num(get(d, "context_window", "total_input_tokens")), num(get(d, "context_window", "context_window_size"))
-            if used is not None and size:
-                text += p("2", " %s/%s" % (tokens(used), tokens(size)))
         return [("ctx", 0, self.label("ctx", text))]
 
     def limits(self, with_bar=True):
@@ -399,12 +409,11 @@ class Renderer:
             out.append(("agent", 3, self.label("agent", agent)))
         return out
 
-    def row(self, groups, width):
+    def row(self, groups, width, sep=" │ "):
         """Join groups of segments, dropping low-priority ones to fit width."""
-        hide = set(self.prefs["hide"])
-        groups = [[s for s in g if s[0] not in hide] for g in groups]
+        groups = [[s for s in g if s[0] not in self.hidden] for g in groups]
         while True:
-            line = self.p("2", " │ ").join(
+            line = self.p("2", sep).join(
                 "  ".join(s[2] for s in g) for g in groups if g)
             if not width or vwidth(line) <= width:
                 return line
@@ -415,15 +424,27 @@ class Renderer:
             _, gi, si = max(candidates)
             del groups[gi][si]
 
+    def header(self, width):
+        """Location, then model, on one row; two rows if they don't fit."""
+        left, right = self.row([self.where()], width), self.row([self.who()], width)
+        if not (left and right):
+            return [left or right]
+        joined = left + self.p("2", SEP) + right
+        if not width or vwidth(joined) <= width:
+            return [joined]
+        return [left, right]
+
     def render(self, width=0):
         if self.prefs["compact"]:
             def keep(segs):
                 return [s for s in segs if s[0] in COMPACT]
-            rows = [[keep(self.where()), keep(self.who()), self.ctx(False) + self.limits(False)]]
-        else:
-            rows = [[self.where(), self.who()], [self.ctx(), self.limits()], [self.session()]]
-        lines = [self.row(groups, width) for groups in rows]
-        return "\n".join(line for line in lines if line)
+            return self.row([keep(self.where()), keep(self.who()),
+                             self.ctx(False) + self.limits(False)], width)
+        lines = self.header(width)
+        lines.append(self.row([self.ctx()] + [[s] for s in self.limits()], width, sep=SEP))
+        lines.append(self.row([self.session()], width))
+        # Spacer rows between rows and after the last, above Claude Code's footer.
+        return ("\n%s\n" % SPACER).join(line for line in lines if line) + "\n" + SPACER
 
 
 def terminal_width():
@@ -484,7 +505,8 @@ def preview(all_styles):
         print("── bars ──")
         for name in BAR_STYLES:
             row = Renderer(data, dict(prefs, compact=False, bars=name), colour_enabled()).render(width)
-            print("%-6s %s" % (name, row.split("\n")[1] if "\n" in row else row))
+            gauges = [l for l in row.split("\n") if "ctx" in ANSI_RE.sub("", l)]
+            print("%-6s %s" % (name, gauges[0] if gauges else row))
 
 
 def show_status():
@@ -492,7 +514,7 @@ def show_status():
     print("emoji:   %s" % ("on" if prefs["emoji"] else "off"))
     print("compact: %s" % ("on" if prefs["compact"] else "off"))
     print("bars:    %s" % prefs["bars"])
-    print("hidden:  %s" % (", ".join(prefs["hide"]) or "none"))
+    print("hidden:  %s" % (", ".join(sorted(hidden_segments(prefs))) or "none"))
     print("prefs:   %s\n" % prefs_path())
     preview(False)
 
@@ -530,10 +552,12 @@ def cli(args):
         if not rest or unknown:
             print("usage: statusline %s <segment>...\nsegments: %s" % (cmd, " ".join(SEGMENTS)), file=sys.stderr)
             return 2
-        hidden = [s for s in prefs["hide"] if s not in rest]
-        prefs["hide"] = hidden + list(rest) if cmd == "hide" else hidden
+        hide = set(prefs["hide"]) | set(rest) if cmd == "hide" else set(prefs["hide"]) - set(rest)
+        show = set(prefs["show"]) | set(rest) if cmd == "show" else set(prefs["show"]) - set(rest)
+        prefs["hide"] = sorted(s for s in hide if s not in DEFAULT_HIDDEN)
+        prefs["show"] = sorted(s for s in show if s in DEFAULT_HIDDEN)
         save_prefs(prefs)
-        print("hidden: %s" % (", ".join(prefs["hide"]) or "none"))
+        print("hidden: %s" % (", ".join(sorted(hidden_segments(prefs))) or "none"))
         return 0
     print("unknown command %r; see statusline --help" % cmd, file=sys.stderr)
     return 2
