@@ -78,7 +78,10 @@
     # (see above), so dropping a cask here never removes it from a machine
     # that already has it — it just stops being auto-installed on new ones.
     casks = [
-      "aerospace"
+      # "aerospace" — paused 2026-10-09: the tap's cask (086fa55) uses #{version}
+      # inside postflight_steps, which Homebrew 6.0.1 can't evaluate, so
+      # `brew bundle` fails the whole switch. Still installed (cleanup = "none").
+      # Restore once `brew info --cask aerospace` works again (Runes issue).
       # font-hack-nerd-font moved to nix (home.packages nerd-fonts.hack);
       # brew copy can be removed with: brew uninstall --cask font-hack-nerd-font
       "wezterm"
