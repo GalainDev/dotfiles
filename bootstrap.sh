@@ -20,7 +20,18 @@ echo "==> Step 2: symlink this repo to ~/.dotfiles"
 # must exist before the first switch.
 ln -sfn "$DIR" ~/.dotfiles
 
-echo "==> Step 3: sanity-check the flake user"
+echo "==> Step 3: clone AI skills repo"
+# home.nix symlinks .claude/skills and .codex/skills entries out of this repo
+# (mkOutOfStoreSymlink doesn't clone anything — it just points at the path),
+# so it must exist on disk before the first switch too.
+if [ ! -d ~/developer/AI ]; then
+  mkdir -p ~/developer
+  git clone https://github.com/GalainDev/AI.git ~/developer/AI
+else
+  echo "    ~/developer/AI already exists, skipping"
+fi
+
+echo "==> Step 4: sanity-check the flake user"
 REAL_USER="$(whoami)"
 FLAKE_USER="$(sed -nE 's/^[[:space:]]*user = "([^"]+)";.*/\1/p' "$DIR/flake.nix" | head -n1)"
 if [ "$FLAKE_USER" != "$REAL_USER" ]; then
@@ -29,7 +40,7 @@ if [ "$FLAKE_USER" != "$REAL_USER" ]; then
 fi
 echo "    user \"$REAL_USER\" matches."
 
-echo "==> Step 4: first darwin-rebuild switch"
+echo "==> Step 5: first darwin-rebuild switch"
 # darwin-rebuild doesn't exist yet, so run it straight from the flake this once.
 # sudo strips /nix/... from PATH, so resolve nix's absolute path first.
 NIX_BIN="$(command -v nix)"

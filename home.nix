@@ -5,6 +5,7 @@ let
   # rebuild.sh), which points at this repo. Editing files under home/ edits
   # your live config directly — no rebuild needed for symlinked files.
   dotfiles = "${config.home.homeDirectory}/.dotfiles";
+
 in
 
 {
@@ -20,7 +21,9 @@ in
   ];
   fonts.fontconfig.enable = true;
 
-  home.sessionVariables.EDITOR = "nvim";
+  home.sessionVariables = {
+    EDITOR = "nvim";
+  };
 
   # ── Shell (home-manager owns ~/.zshrc now; the old one is backed up as
   #    ~/.zshrc.before-nix on first switch) ────────────────────────────────
@@ -33,6 +36,7 @@ in
 
       # ── ported verbatim from my pre-nix ~/.zshrc ──
       export PATH="$HOME/.local/bin:$PATH"   # native claude takes priority
+      export PATH="$PATH:$HOME/go/bin"       # go install targets: chron, rune
       alias claude-a='claude --permission-mode auto'
       alias claude-dsp='claude --dangerously-skip-permissions'
       alias codex-dsp='codex --dangerously-bypass-approvals-and-sandbox'
@@ -82,6 +86,21 @@ in
   home.file.".claude/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/settings.json";
 
+  # ── Session lifecycle skills (new-day / wind-down) ─────────────────────────
+  # Canonical source is the separate `AI` repo (github.com/GalainDev/AI),
+  # cloned to ~/developer/AI. Claude and Codex both read the same SKILL.md.
+  home.file.".claude/skills/new-day".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/new-day";
+  home.file.".claude/skills/wind-down".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/wind-down";
+  home.file.".codex/skills/new-day".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/new-day";
+  home.file.".codex/skills/wind-down".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/wind-down";
+  home.file.".claude/skills/chronicle".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/chronicle";
+  home.file.".codex/skills/chronicle".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/developer/AI/skills/chronicle";
   # ── One AGENTS.md, every provider (harness Phase 1) ───────────────────────
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
