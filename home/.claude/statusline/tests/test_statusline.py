@@ -15,11 +15,12 @@ sys.path.insert(0, os.path.dirname(HERE))
 import statusline  # noqa: E402
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m|\x1b\]8;;[^\x07]*\x07")
+SPACER = statusline.SPACER
 
 
 def lines(text):
     """Visible rows, without colour codes or the blank spacer rows."""
-    return [r for r in ANSI.sub("", text).split("\n") if r.strip().strip(statusline.SPACER)]
+    return [r for r in ANSI.sub("", text).split("\n") if r.strip().strip(SPACER)]
 
 
 def full_input(cwd):
@@ -55,8 +56,8 @@ class Env:
         self.env = dict(os.environ, HOME=self.home,
                         XDG_CONFIG_HOME=os.path.join(self.home, "cfg"),
                         XDG_CACHE_HOME=os.path.join(self.home, "cache"))
-        for key in ("STATUSLINE_EMOJI", "STATUSLINE_COMPACT", "STATUSLINE_BARS",
-                    "NO_COLOR", "COLUMNS", "CLAUDE_CONFIG_DIR"):
+        for key in ("STATUSLINE_EMOJI", "STATUSLINE_COMPACT", "STATUSLINE_SPACING",
+                    "STATUSLINE_BARS", "NO_COLOR", "COLUMNS", "CLAUDE_CONFIG_DIR"):
             self.env.pop(key, None)
 
     def render(self, data, raw=None, **env):
@@ -93,59 +94,64 @@ class RenderTests(unittest.TestCase):
 
     def test_default_layout(self):
         rows = self.rows()
-        self.assertEqual(len(rows), 2, rows)  # header + gauges; session row is opt-in
+        self.assertEqual(len(rows), 3, rows)  # location, model, gauges
         self.assertTrue(rows[0].startswith("📁 ~/code/app"), rows[0])
         self.assertIn("🌿 none", rows[0])  # not a git repo
         self.assertIn("🌳 feature-x", rows[0])
         self.assertIn("PR #12", rows[0])
-        self.assertIn("🧠 Opus 5.5", rows[0])
-        self.assertIn("⚡ high", rows[0])
-        self.assertNotIn("think", rows[0])
-        self.assertIn("ctx", rows[1])
-        self.assertIn("42%", rows[1])
-        self.assertNotIn("84k", rows[1])
-        self.assertIn("24%", rows[1])  # 23.5 rounds half-to-even → 24
-        self.assertIn("↻2h14m", rows[1])
-        self.assertIn("7d", rows[1])
-        self.assertIn("↻3d4h", rows[1])
+        self.assertNotIn("Opus", rows[0])
+        self.assertTrue(rows[1].startswith("🧠 Opus 5.5"), rows[1])
+        self.assertIn("⚡ high", rows[1])
+        self.assertTrue(rows[1].endswith("│  sid: abcdef12"), rows[1])
+        self.assertNotIn("think", rows[1])
+        self.assertTrue(rows[2].startswith("ctx"), rows[2])
+        self.assertIn("42%", rows[2])
+        self.assertNotIn("84k", rows[2])
+        self.assertIn("24%", rows[2])  # 23.5 rounds half-to-even → 24
+        self.assertIn("↻2h14m", rows[2])
+        self.assertIn("7d", rows[2])
+        self.assertIn("↻3d4h", rows[2])
 
-    def test_rows_are_spaced(self):
+    def test_no_spacer_rows_by_default(self):
         out = self.e.render(full_input(self.e.project)).stdout
-        self.assertIn("\n%s\n" % statusline.SPACER, out)
-        self.assertTrue(out.endswith("\n%s\n" % statusline.SPACER), repr(out[-20:]))  # gap above the footer
-        self.assertNotIn("\n \n", out)  # whitespace-only rows get dropped by Claude Code
+        self.assertNotIn(SPACER, out)
+        self.assertEqual(len(out.rstrip("\n").split("\n")), 3)
 
-    def test_80_column_pane_one_header_row_and_keeps_weekly(self):
+    def test_spacing_on_adds_gap_rows_and_footer_gap(self):
+        out = self.e.render(full_input(self.e.project), STATUSLINE_SPACING="1").stdout
+        self.assertEqual(out.count("\n%s\n" % SPACER), 3)  # 2 between rows + 1 above footer
+        self.assertTrue(out.endswith("\n%s\n" % SPACER), repr(out[-20:]))
+        self.assertNotIn("\n \n", out)  # whitespace-only rows get dropped by Claude Code
+        self.assertEqual(len(lines(out)), 3)
+
+    def test_80_column_pane_keeps_weekly(self):
         rows = self.rows(COLUMNS="80")
-        self.assertEqual(len(rows), 2, rows)
-        self.assertTrue(rows[0].startswith("📁 ~/code/app"))
-        self.assertIn("  │  🧠 Opus 5.5", rows[0])
-        self.assertTrue(rows[0].endswith("⚡ high"), rows[0])
-        self.assertNotIn("   ", rows[0].replace("  │  ", ""))  # no padding gaps
-        self.assertIn("7d", rows[1])
-        self.assertIn("↻3d4h", rows[1])
+        self.assertEqual(len(rows), 3, rows)
+        self.assertIn("sid: abcdef12", rows[1])
+        self.assertIn("7d", rows[2])
+        self.assertIn("↻3d4h", rows[2])
         for row in rows:
             self.assertLessEqual(statusline.vwidth(row), 76, row)
 
-    def test_narrow_pane_splits_header_and_drops_weekly_first(self):
+    def test_narrow_pane_drops_low_priority_segments_first(self):
         rows = self.rows(COLUMNS="54")
         for row in rows:
             self.assertLessEqual(statusline.vwidth(row), 50, row)
         self.assertTrue(rows[0].startswith("📁 ~/code/app"))
-        self.assertTrue(any(r.startswith("🧠 Opus 5.5") for r in rows), rows)
-        self.assertIn("ctx", rows[-1])
-        self.assertIn("5h", rows[-1])
-        self.assertNotIn("7d", rows[-1])
+        self.assertTrue(rows[1].startswith("🧠 Opus 5.5"))
+        self.assertIn("ctx", rows[2])
+        self.assertIn("5h", rows[2])     # weekly drops before the 5-hour gauge
+        self.assertNotIn("7d", rows[2])
 
     def test_session_row_is_opt_in(self):
-        self.e.cli("show", "sid", "name", "duration", "lines")
+        self.e.cli("show", "name", "duration", "lines")
         rows = self.rows()
-        self.assertEqual(len(rows), 3)
-        self.assertIn("sid abcdef12", rows[2])
-        self.assertIn("status line work", rows[2])
-        self.assertIn("1h05m", rows[2])
-        self.assertIn("+12 −3", rows[2])
-        self.assertNotIn("$", rows[2])  # cost still hidden
+        self.assertEqual(len(rows), 4)
+        self.assertIn("status line work", rows[3])
+        self.assertIn("1h05m", rows[3])
+        self.assertIn("+12 −3", rows[3])
+        self.assertNotIn("$", rows[3])  # cost still hidden
+        self.assertNotIn("sid:", rows[3])  # sid lives on the model row
 
     def test_no_worktree_shows_none(self):
         data = full_input(self.e.project)
@@ -202,12 +208,12 @@ class RenderTests(unittest.TestCase):
 
     def test_tier_from_account(self):
         self.e.account(organizationType="claude_max", userRateLimitTier="default_claude_max_20x")
-        self.assertIn("Max 20x", self.rows()[0])
+        self.assertIn("Max 20x", self.rows()[1])
         self.e.account(organizationType="claude_pro", organizationRateLimitTier="default_claude_ai")
-        self.assertIn("Pro", self.rows()[0])
+        self.assertIn("Pro", self.rows()[1])
 
     def test_tier_missing_or_odd_account(self):
-        self.assertNotIn("Pro", self.rows()[0])  # no ~/.claude.json
+        self.assertNotIn("Pro", self.rows()[1])  # no ~/.claude.json
         with open(os.path.join(self.e.home, ".claude.json"), "w") as f:
             f.write('{"oauthAccount": "weird"}')
         self.rows()
@@ -231,14 +237,21 @@ class PrefsTests(unittest.TestCase):
 
     def test_emoji_toggle_applies_without_restart(self):
         rows = self.rows()
-        self.assertIn("🧠 Opus 5.5", rows[0])  # folder/model/effort always carry emoji
-        self.assertNotIn("⏳", rows[1])
+        self.assertIn("🧠 Opus 5.5", rows[1])  # folder/model/effort always carry emoji
+        self.assertNotIn("⏳", rows[2])
         self.assertIn("emoji on", self.e.cli("emoji").stdout)
         rows = self.rows()
-        self.assertIn("⏳ 5h", rows[1])
-        self.assertIn("📊", rows[1])
+        self.assertIn("⏳ 5h", rows[2])
+        self.assertIn("📊", rows[2])
         self.assertIn("emoji off", self.e.cli("emoji", "off").stdout)
         self.assertNotIn("⏳", "\n".join(self.rows()))
+
+    def test_spacing_toggle(self):
+        self.assertIn("spacing on", self.e.cli("spacing").stdout)
+        self.assertEqual(self.e.render(full_input(self.e.project)).stdout.count(SPACER), 3)
+        self.assertIn("spacing: on", self.e.cli("status").stdout)
+        self.e.cli("spacing", "off")
+        self.assertNotIn(SPACER, self.e.render(full_input(self.e.project)).stdout)
 
     def test_env_overrides_prefs(self):
         self.e.cli("emoji", "on")
@@ -252,39 +265,44 @@ class PrefsTests(unittest.TestCase):
         self.assertIn("Opus 5.5", rows[0])
         self.assertIn("ctx 42%", rows[0])
         self.assertIn("7d 91%", rows[0])
-        self.assertNotIn("sid", rows[0])
+        self.assertNotIn("sid:", rows[0])
 
     def test_hide_and_show(self):
         self.e.account(organizationType="claude_pro")
-        self.assertIn("Pro", self.rows()[0])
-        self.e.cli("hide", "tier")
-        self.e.cli("show", "cost", "sid", "thinking")
+        self.assertIn("Pro", self.rows()[1])
+        self.e.cli("hide", "tier", "sid")
+        self.e.cli("show", "cost", "thinking")
         rows = self.rows()
-        self.assertNotIn("Pro", rows[0])
-        self.assertIn("thinking", rows[0])
-        self.assertIn("sid", rows[2])
-        self.assertIn("~$2.50", rows[2])
-        self.assertNotIn("status line work", rows[2])
+        self.assertNotIn("Pro", rows[1])
+        self.assertNotIn("sid:", rows[1])
+        self.assertIn("thinking", rows[1])
+        self.assertIn("~$2.50", rows[3])
+        self.assertNotIn("status line work", rows[3])
         with open(self.e.prefs_file()) as f:
             saved = json.load(f)
-        self.assertEqual(saved["hide"], ["tier"])
-        self.assertEqual(saved["show"], ["cost", "sid", "thinking"])
-        self.e.cli("hide", "sid", "cost", "thinking")  # back to the defaults
-        self.assertEqual(len(self.rows()), 2)
+        self.assertEqual(saved["hide"], ["sid", "tier"])
+        self.assertEqual(saved["show"], ["cost", "thinking"])
+        self.e.cli("show", "sid", "tier")
+        self.e.cli("hide", "cost", "thinking")  # back to the defaults
+        rows = self.rows()
+        self.assertEqual(len(rows), 3)
+        self.assertIn("sid:", rows[1])
 
     def test_old_prefs_do_not_pin_old_defaults(self):
         os.makedirs(os.path.dirname(self.e.prefs_file()))
         with open(self.e.prefs_file(), "w") as f:
             json.dump({"emoji": False, "compact": False, "hide": ["cost"]}, f)
-        self.assertEqual(len(self.rows()), 2)  # session row stays hidden
+        rows = self.rows()
+        self.assertEqual(len(rows), 3)  # session row stays hidden
+        self.assertIn("sid:", rows[1])     # sid shown by the newer default
 
     def test_bar_styles(self):
-        self.assertIn("█", self.rows()[1])  # block is the default
+        self.assertIn("█", self.rows()[2])  # block is the default
         self.assertIn("bars pill", self.e.cli("bars", "pill").stdout)
-        row = self.rows()[1]
+        row = self.rows()[2]
         self.assertIn("▰", row)
         self.assertNotIn("█", row)
-        self.assertIn("●", self.rows(STATUSLINE_BARS="dots")[1])
+        self.assertIn("●", self.rows(STATUSLINE_BARS="dots")[2])
         self.assertIn("bars:    pill", self.e.cli("status").stdout)
 
     def test_bad_cli_args(self):
@@ -292,6 +310,7 @@ class PrefsTests(unittest.TestCase):
         self.assertEqual(self.e.cli("bars").returncode, 2)
         self.assertEqual(self.e.cli("hide", "nope").returncode, 2)
         self.assertEqual(self.e.cli("emoji", "maybe").returncode, 2)
+        self.assertEqual(self.e.cli("spacing", "half").returncode, 2)
         self.assertEqual(self.e.cli("frobnicate").returncode, 2)
 
     def test_unwritable_prefs_is_a_clean_error(self):
@@ -307,7 +326,7 @@ class PrefsTests(unittest.TestCase):
         os.makedirs(os.path.dirname(self.e.prefs_file()))
         with open(self.e.prefs_file(), "w") as f:
             f.write("{oops")
-        self.assertEqual(len(self.rows()), 2)
+        self.assertEqual(len(self.rows()), 3)
 
     def test_preview_and_status_without_history(self):
         out = self.e.cli("preview")

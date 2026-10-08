@@ -8,13 +8,14 @@ Claude Code runs this with the session JSON on stdin (settings.json
   statusline                    show preferences and a preview
   statusline emoji [on|off]     emoji labels (toggles without an argument)
   statusline compact [on|off]   one row instead of three
+  statusline spacing [on|off]   blank rows between rows and above the footer
   statusline hide|show <seg>    hide or show a segment (thinking, sid, name,
                                 duration, lines, cost start hidden)
   statusline bars <style>       gauge style: block (default), pill, dots, line
   statusline preview            render the last real input in every style
 
 Preferences live in $XDG_CONFIG_HOME/claude-statusline/prefs.json and apply on
-the next refresh. Env overrides: STATUSLINE_EMOJI=0|1, STATUSLINE_COMPACT=0|1,
+the next refresh. Env overrides: STATUSLINE_EMOJI, _COMPACT, _SPACING (0|1),
 NO_COLOR. Stdlib only (Python 3.9); render mode never exits non-zero.
 """
 
@@ -32,10 +33,12 @@ SEGMENTS = (
     "fast", "ctx", "5h", "7d", "sid", "name", "duration", "lines", "cost",
     "style", "agent",
 )
-DEFAULT_PREFS = {"emoji": False, "compact": False, "bars": "block", "hide": [], "show": []}
+DEFAULT_PREFS = {"emoji": False, "compact": False, "spacing": False, "bars": "block",
+                 "hide": [], "show": []}
+TOGGLES = ("emoji", "compact", "spacing")
 # Hidden unless `statusline show <seg>`. Prefs store only the user's changes
 # against this set, so changing a default later still takes effect.
-DEFAULT_HIDDEN = ("thinking", "sid", "name", "duration", "lines", "cost")
+DEFAULT_HIDDEN = ("thinking", "name", "duration", "lines", "cost")
 COMPACT = {"dir", "branch", "model", "effort", "ctx", "5h", "7d"}
 
 # Gauge glyphs (filled, empty). All single-column in non-CJK terminals.
@@ -49,7 +52,7 @@ LABELS = {
     "pr": ("", "🔀"), "model": ("🧠", "🧠"), "tier": ("", "💳"),
     "effort": ("⚡", "⚡"), "thinking": ("thinking", "💭"), "fast": ("fast", "🚀"),
     "ctx": ("ctx", "📊"), "5h": ("5h", "⏳ 5h"), "7d": ("7d", "📅 7d"),
-    "sid": ("sid", "🆔"), "name": ("", "💬"), "duration": ("", "⌛"),
+    "sid": ("sid:", "sid:"), "name": ("", "💬"), "duration": ("", "⌛"),
     "lines": ("", "📝"), "cost": ("", "💰"), "style": ("style", "🎨"),
     "agent": ("agent", "🤖"),
 }
@@ -108,7 +111,7 @@ def load_prefs(apply_env=True):
         with open(prefs_path()) as f:
             data = json.load(f)
         if isinstance(data, dict):
-            for key in ("emoji", "compact"):
+            for key in TOGGLES:
                 if isinstance(data.get(key), bool):
                     prefs[key] = data[key]
             if data.get("bars") in BAR_STYLES:
@@ -119,7 +122,7 @@ def load_prefs(apply_env=True):
     except (OSError, ValueError):
         pass
     if apply_env:
-        for key in ("emoji", "compact"):
+        for key in TOGGLES:
             value = os.environ.get("STATUSLINE_" + key.upper())
             if value in ("0", "1"):
                 prefs[key] = value == "1"
@@ -385,9 +388,6 @@ class Renderer:
     def session(self):
         p, d = self.p, self.d
         out = []
-        sid = get(d, "session_id")
-        if isinstance(sid, str) and sid:
-            out.append(("sid", 1, self.label("sid", p("2", sid[:8]))))
         name = get(d, "session_name")
         if isinstance(name, str) and name:
             out.append(("name", 2, self.label("name", truncate(name, 28))))
@@ -424,15 +424,11 @@ class Renderer:
             _, gi, si = max(candidates)
             del groups[gi][si]
 
-    def header(self, width):
-        """Location, then model, on one row; two rows if they don't fit."""
-        left, right = self.row([self.where()], width), self.row([self.who()], width)
-        if not (left and right):
-            return [left or right]
-        joined = left + self.p("2", SEP) + right
-        if not width or vwidth(joined) <= width:
-            return [joined]
-        return [left, right]
+    def sid(self):
+        sid = get(self.d, "session_id")
+        if isinstance(sid, str) and sid:
+            return [("sid", 3, self.label("sid", self.p("2", sid[:8])))]
+        return []
 
     def render(self, width=0):
         if self.prefs["compact"]:
@@ -440,11 +436,14 @@ class Renderer:
                 return [s for s in segs if s[0] in COMPACT]
             return self.row([keep(self.where()), keep(self.who()),
                              self.ctx(False) + self.limits(False)], width)
-        lines = self.header(width)
+        lines = [self.row([self.where()], width), self.row([self.who(), self.sid()], width, sep=SEP)]
         lines.append(self.row([self.ctx()] + [[s] for s in self.limits()], width, sep=SEP))
         lines.append(self.row([self.session()], width))
-        # Spacer rows between rows and after the last, above Claude Code's footer.
-        return ("\n%s\n" % SPACER).join(line for line in lines if line) + "\n" + SPACER
+        rows = [line for line in lines if line]
+        if not self.prefs["spacing"]:
+            return "\n".join(rows)
+        # Spacer rows between rows and one above Claude Code's footer.
+        return ("\n%s\n" % SPACER).join(rows) + "\n" + SPACER
 
 
 def terminal_width():
@@ -513,6 +512,7 @@ def show_status():
     prefs = load_prefs(apply_env=False)
     print("emoji:   %s" % ("on" if prefs["emoji"] else "off"))
     print("compact: %s" % ("on" if prefs["compact"] else "off"))
+    print("spacing: %s" % ("on" if prefs["spacing"] else "off"))
     print("bars:    %s" % prefs["bars"])
     print("hidden:  %s" % (", ".join(sorted(hidden_segments(prefs))) or "none"))
     print("prefs:   %s\n" % prefs_path())
@@ -531,7 +531,7 @@ def cli(args):
         preview(True)
         return 0
     prefs = load_prefs(apply_env=False)
-    if cmd in ("emoji", "compact"):
+    if cmd in TOGGLES:
         if rest and rest[0] not in ("on", "off"):
             print("usage: statusline %s [on|off]" % cmd, file=sys.stderr)
             return 2
