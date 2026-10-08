@@ -153,6 +153,23 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("$", rows[3])  # cost still hidden
         self.assertNotIn("sid:", rows[3])  # sid lives on the model row
 
+    def test_cache_segment(self):
+        now = time.time()
+        data = full_input(self.e.project)
+        data["prompt_cache"] = {"caching_observed": True, "warm": True,
+                                "expires_at": now + 52 * 60 + 20, "recache_tokens_if_cold": 274_865}
+        out = self.e.render(data).stdout
+        self.assertIn("cache \x1b[32m52m", out)
+        self.assertIn("⚡ high  │  cache 52m  │  sid: abcdef12", lines(out)[2])
+        data["prompt_cache"]["expires_at"] = now + 200
+        self.assertIn("cache \x1b[33m3m", self.e.render(data).stdout)
+        data["prompt_cache"].update(warm=False, expires_at=None)
+        self.assertIn("cache \x1b[31mcold 275k", self.e.render(data).stdout)
+        data["prompt_cache"]["caching_observed"] = False
+        self.assertNotIn("cache", self.rows(data)[2])
+        del data["prompt_cache"]
+        self.assertNotIn("cache", self.rows(data)[2])
+
     def test_no_worktree_shows_none(self):
         data = full_input(self.e.project)
         del data["worktree"]

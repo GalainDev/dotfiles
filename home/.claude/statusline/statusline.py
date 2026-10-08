@@ -30,7 +30,7 @@ import unicodedata
 
 SEGMENTS = (
     "dir", "branch", "worktree", "pr", "model", "tier", "effort", "thinking",
-    "fast", "ctx", "5h", "7d", "sid", "name", "duration", "lines", "cost",
+    "fast", "cache", "ctx", "5h", "7d", "sid", "name", "duration", "lines", "cost",
     "style", "agent",
 )
 DEFAULT_PREFS = {"emoji": False, "compact": False, "spacing": False, "bars": "block",
@@ -52,7 +52,7 @@ LABELS = {
     "pr": ("", "🔀"), "model": ("🧠", "🧠"), "tier": ("", "💳"),
     "effort": ("⚡", "⚡"), "thinking": ("thinking", "💭"), "fast": ("fast", "🚀"),
     "ctx": ("ctx", "📊"), "5h": ("5h", "⏳ 5h"), "7d": ("7d", "📅 7d"),
-    "sid": ("sid:", "sid:"), "name": ("", "💬"), "duration": ("", "⌛"),
+    "sid": ("sid:", "sid:"), "cache": ("cache", "💾"), "name": ("", "💬"), "duration": ("", "⌛"),
     "lines": ("", "📝"), "cost": ("", "💰"), "style": ("style", "🎨"),
     "agent": ("agent", "🤖"),
 }
@@ -156,6 +156,14 @@ def get(data, *path):
 
 def num(value):
     return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def tokens(n):
+    if n >= 1_000_000:
+        return "%.1fM" % (n / 1_000_000)
+    if n >= 1000:
+        return "%dk" % round(n / 1000)
+    return str(int(n))
 
 
 def countdown(seconds):
@@ -424,6 +432,19 @@ class Renderer:
             _, gi, si = max(candidates)
             del groups[gi][si]
 
+    def cache(self):
+        """Prompt cache: time until it goes cold, or what a cold start re-reads."""
+        pc = get(self.d, "prompt_cache")
+        if not isinstance(pc, dict) or not pc.get("caching_observed"):
+            return []
+        left = (num(pc.get("expires_at")) or 0) - self.now
+        if pc.get("warm") is True and left > 0:
+            text = self.p("32" if left >= 300 else "33", countdown(left))
+        else:
+            rebuild = num(pc.get("recache_tokens_if_cold"))
+            text = self.p("31", "cold" + (" %s" % tokens(rebuild) if rebuild else ""))
+        return [("cache", 2, self.label("cache", text))]
+
     def sid(self):
         sid = get(self.d, "session_id")
         if isinstance(sid, str) and sid:
@@ -441,7 +462,7 @@ class Renderer:
         lines = [
             self.row([self.ctx()] + [[s] for s in self.limits()], width, sep=SEP),
             self.row([self.where()], width),
-            self.row([self.who(), self.sid()], width, sep=SEP),
+            self.row([self.who(), self.cache(), self.sid()], width, sep=SEP),
             self.row([self.session()], width),
         ]
         rows = [line for line in lines if line]
