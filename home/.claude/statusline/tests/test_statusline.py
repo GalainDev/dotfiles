@@ -221,7 +221,18 @@ class PrefsTests(unittest.TestCase):
         self.assertIn("~$2.50", last)
         self.assertNotIn("status line work", last)
 
+    def test_bar_styles(self):
+        self.assertIn("█", self.rows()[1])  # block is the default
+        self.assertIn("bars pill", self.e.cli("bars", "pill").stdout)
+        row = self.rows()[1]
+        self.assertIn("▰", row)
+        self.assertNotIn("█", row)
+        self.assertIn("●", self.rows(STATUSLINE_BARS="dots")[1])
+        self.assertIn("bars:    pill", self.e.cli("status").stdout)
+
     def test_bad_cli_args(self):
+        self.assertEqual(self.e.cli("bars", "chunky").returncode, 2)
+        self.assertEqual(self.e.cli("bars").returncode, 2)
         self.assertEqual(self.e.cli("hide", "nope").returncode, 2)
         self.assertEqual(self.e.cli("emoji", "maybe").returncode, 2)
         self.assertEqual(self.e.cli("frobnicate").returncode, 2)
@@ -245,8 +256,10 @@ class PrefsTests(unittest.TestCase):
         out = self.e.cli("preview")
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("sample input", out.stdout)
-        for name in ("text", "emoji", "compact", "compact + emoji"):
+        for name in ("text", "emoji", "compact", "compact + emoji", "bars"):
             self.assertIn("── %s ──" % name, out.stdout)
+        for style in ("block", "pill", "dots", "line"):
+            self.assertIn("\n%-6s " % style, out.stdout)
         # bare `statusline` only shows status on a tty; without one it renders
         status = self.e.cli("status")
         self.assertIn("emoji:   off", status.stdout)

@@ -8,6 +8,7 @@ Claude Code runs this with the session JSON on stdin (settings.json
   statusline emoji [on|off]     emoji labels (toggles without an argument)
   statusline compact [on|off]   one row instead of three
   statusline hide|show <seg>    hide or show a segment
+  statusline bars <style>       gauge style: block (default), pill, dots, line
   statusline preview            render the last real input in every style
 
 Preferences live in $XDG_CONFIG_HOME/claude-statusline/prefs.json and apply on
@@ -29,8 +30,12 @@ SEGMENTS = (
     "fast", "ctx", "5h", "7d", "sid", "name", "duration", "lines", "cost",
     "style", "agent",
 )
-DEFAULT_PREFS = {"emoji": False, "compact": False, "hide": ["cost"]}
+DEFAULT_PREFS = {"emoji": False, "compact": False, "bars": "block", "hide": ["cost"]}
 COMPACT = {"dir", "branch", "model", "effort", "ctx", "5h", "7d"}
+
+# Gauge glyphs (filled, empty). All single-column in non-CJK terminals.
+BAR_STYLES = {"block": ("█", "░"), "pill": ("▰", "▱"), "dots": ("●", "○"),
+              "line": ("━", "━")}
 
 # segment: (text label, emoji label). Emoji are default-emoji-presentation
 # code points (no U+FE0F) so terminals agree on their two-column width.
@@ -88,8 +93,7 @@ def prefs_path():
 
 
 def load_prefs(apply_env=True):
-    prefs = {"emoji": DEFAULT_PREFS["emoji"], "compact": DEFAULT_PREFS["compact"],
-             "hide": list(DEFAULT_PREFS["hide"])}
+    prefs = dict(DEFAULT_PREFS, hide=list(DEFAULT_PREFS["hide"]))
     try:
         with open(prefs_path()) as f:
             data = json.load(f)
@@ -97,6 +101,8 @@ def load_prefs(apply_env=True):
             for key in ("emoji", "compact"):
                 if isinstance(data.get(key), bool):
                     prefs[key] = data[key]
+            if data.get("bars") in BAR_STYLES:
+                prefs["bars"] = data["bars"]
             if isinstance(data.get("hide"), list):
                 prefs["hide"] = [s for s in data["hide"] if s in SEGMENTS]
     except (OSError, ValueError):
@@ -106,6 +112,8 @@ def load_prefs(apply_env=True):
             value = os.environ.get("STATUSLINE_" + key.upper())
             if value in ("0", "1"):
                 prefs[key] = value == "1"
+        if os.environ.get("STATUSLINE_BARS") in BAR_STYLES:
+            prefs["bars"] = os.environ["STATUSLINE_BARS"]
     return prefs
 
 
@@ -199,9 +207,10 @@ def level_colour(pct):
     return "32" if pct < 60 else "33" if pct < 85 else "31"
 
 
-def bar(paint, pct, width=8):
+def bar(paint, pct, width=8, style="block"):
+    full, empty = BAR_STYLES.get(style, BAR_STYLES["block"])
     filled = max(0, min(width, int(round(pct / 100.0 * width))))
-    return paint(level_colour(pct), "━" * filled) + paint("2", "━" * (width - filled))
+    return paint(level_colour(pct), full * filled) + paint("2", empty * (width - filled))
 
 
 # ── external facts: git and plan tier ────────────────────────────────────────
@@ -341,7 +350,7 @@ class Renderer:
             return [("ctx", 0, self.label("ctx", p("2", "—")))]
         text = p(level_colour(pct), "%d%%" % round(pct))
         if with_bar:
-            text = bar(p, pct, 10) + " " + text
+            text = bar(p, pct, 10, self.prefs["bars"]) + " " + text
             used, size = num(get(d, "context_window", "total_input_tokens")), num(get(d, "context_window", "context_window_size"))
             if used is not None and size:
                 text += p("2", " %s/%s" % (tokens(used), tokens(size)))
@@ -356,7 +365,7 @@ class Renderer:
                 continue
             text = p(level_colour(pct), "%d%%" % round(pct))
             if with_bar:
-                text = bar(p, pct) + " " + text
+                text = bar(p, pct, 8, self.prefs["bars"]) + " " + text
                 resets = num(get(d, "rate_limits", key, "resets_at"))
                 if resets:
                     text += p("2", " ↻%s" % countdown(resets - self.now))
@@ -471,12 +480,18 @@ def preview(all_styles):
         print("── %s ──" % name)
         print(Renderer(data, style, colour_enabled()).render(width))
         print()
+    if all_styles:
+        print("── bars ──")
+        for name in BAR_STYLES:
+            row = Renderer(data, dict(prefs, compact=False, bars=name), colour_enabled()).render(width)
+            print("%-6s %s" % (name, row.split("\n")[1] if "\n" in row else row))
 
 
 def show_status():
     prefs = load_prefs(apply_env=False)
     print("emoji:   %s" % ("on" if prefs["emoji"] else "off"))
     print("compact: %s" % ("on" if prefs["compact"] else "off"))
+    print("bars:    %s" % prefs["bars"])
     print("hidden:  %s" % (", ".join(prefs["hide"]) or "none"))
     print("prefs:   %s\n" % prefs_path())
     preview(False)
@@ -501,6 +516,14 @@ def cli(args):
         prefs[cmd] = (rest[0] == "on") if rest else not prefs[cmd]
         save_prefs(prefs)
         print("%s %s — applies on the next status line refresh" % (cmd, "on" if prefs[cmd] else "off"))
+        return 0
+    if cmd == "bars":
+        if len(rest) != 1 or rest[0] not in BAR_STYLES:
+            print("usage: statusline bars <%s>" % "|".join(BAR_STYLES), file=sys.stderr)
+            return 2
+        prefs["bars"] = rest[0]
+        save_prefs(prefs)
+        print("bars %s — applies on the next status line refresh" % rest[0])
         return 0
     if cmd in ("hide", "show"):
         unknown = [s for s in rest if s not in SEGMENTS]
